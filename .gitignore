@@ -130,4 +130,5 @@ dmypy.json
 
 # Custom
 .DS_STORE
+.icloud
 __pycache__/
