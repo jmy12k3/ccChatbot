@@ -37,7 +37,7 @@ def preprocess_sentence(w):
 
 def clean_sentence(w, pattern=False):
     w = re.sub(r"[%s]+" % punctuation, "", w)
-    w = re.sub(r"[-()\"#/@;:<>{}`+=~|.!?,]", "", w)
+    # w = re.sub(r"[-()\"#/@;:<>{}`+=~|.!?,]", "", w)
     if pattern:
         _filterDict = {"": ""}
         filterDict = dict((re.escape(k), v) for k, v in _filterDict.items())
