@@ -14,13 +14,11 @@ from config import getConfig
 gConfig = {}
 gConfig = getConfig.get_config()
 
-VOCAB_INP_SIZE = gConfig["vocab_inp_size"]
-VOCAB_TAR_SIZE = gConfig["vocab_tar_size"]
 MAX_LENGTH = gConfig["max_length"]
 
 CHECKPOINT_DIR = gConfig["model_data"]
-VOCAB_INP_PATH = gConfig["vocab_inp_path"]
-VOCAB_TAR_PATH = gConfig["vocab_tar_path"]
+INPUT_VOCAB_PATH = gConfig["input_vocab_path"]
+TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 
 def tokenize(vocab_file):
@@ -43,8 +41,8 @@ def read_data(path):
     input_lang, target_lang = zip(*word_pairs)
 
     # Dataset Encode
-    input_tokenizer = tokenize(VOCAB_INP_PATH)
-    target_tokenizer = tokenize(VOCAB_TAR_PATH)
+    input_tokenizer = tokenize(INPUT_VOCAB_PATH)
+    target_tokenizer = tokenize(TARGET_VOCAB_PATH)
     input_tensor = input_tokenizer.texts_to_sequences(input_lang)
     target_tensor = target_tokenizer.texts_to_sequences(target_lang)
 
@@ -91,37 +89,6 @@ def train():
 
     # test loop
     # ...
-
-
-def predict(sentence, path=os.path.dirname(os.getcwd())):
-    input_tokenizer = tokenize(path + "/" + VOCAB_INP_PATH)
-    target_tokenizer = tokenize(path + "/" + VOCAB_TAR_PATH)
-
-    model.checkpoint.restore(tf.train.latest_checkpoint(path + "/" + CHECKPOINT_DIR))
-
-    sentence = (data_util.preprocess_sentence(sentence),)
-    inputs = input_tokenizer.texts_to_sequences(sentence)
-    inputs = tf.keras.preprocessing.sequence.pad_sequences(
-        inputs, maxlen=MAX_LENGTH, padding="post"
-    )
-    inputs = tf.convert_to_tensor(inputs)
-
-    result = ""
-
-    hidden = [tf.zeros((1, gConfig["layer_size"]))]
-    enc_out, enc_hidden = model.encoder(inputs, hidden)
-    dec_hidden = enc_hidden
-    dec_input = tf.expand_dims([target_tokenizer.word_index[data_util.SOS]], 0)
-
-    for _ in range(MAX_LENGTH):
-        predictions, dec_hidden, _ = model.decoder(dec_input, dec_hidden, enc_out)
-        predicted_id = tf.argmax(predictions[0]).numpy()
-        if target_tokenizer.index_word[predicted_id] == data_util.EOS:
-            break
-        result += str(target_tokenizer.index_word[predicted_id]) + " "
-        dec_input = tf.expand_dims([predicted_id], 0)
-
-    return result
 
 
 if __name__ == "__main__":

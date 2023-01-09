@@ -4,6 +4,8 @@ import numpy as np
 
 from config import getConfig
 
+tf.config.run_functions_eagerly(True)
+
 
 gConfig = {}
 gConfig = getConfig.get_config()
