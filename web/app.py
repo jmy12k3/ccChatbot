@@ -1,14 +1,16 @@
 # coding=utf-8
-import sys
 import os
+import sys
 import time
 import threading
+
 from flask import Flask, render_template, request, jsonify
 
 sys.path.append(os.path.dirname(os.getcwd()))
 import data_util
 import train
 from config import getConfig
+
 
 gConfig = {}
 gConfig = getConfig.get_config()

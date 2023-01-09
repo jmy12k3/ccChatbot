@@ -4,7 +4,6 @@ import json
 import os
 import re
 
-import jieba
 import hanlp
 import tensorflow as tf
 from zhon.hanzi import punctuation
@@ -15,17 +14,16 @@ from config import getConfig
 SOS = "[START] "
 EOS = " [END]"
 
-
 gConfig = {}
 gConfig = getConfig.get_config()
 
-resource_path = gConfig["resource_data"]
-seq_path = gConfig["seq_data"]
-vocab_inp_path = gConfig["vocab_inp_path"]
-vocab_tar_path = gConfig["vocab_tar_path"]
-vocab_inp_size = gConfig["vocab_inp_size"]
-vocab_tar_size = gConfig["vocab_tar_size"]
+INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
+TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
 
+RESOURCE_DATA = gConfig["resource_data"]
+SEQ_DATA = gConfig["seq_data"]
+INPUT_VOCAB_PATH = gConfig["input_vocab_path"]
+TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 # https://hanlp.hankcs.com/docs/api/hanlp/pretrained/tok.html
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
@@ -40,7 +38,9 @@ def preprocess_sentence(w):
 
 
 def clean_sentence(w, pattern=False):
+    # Chinese punctuations
     w = re.sub(r"[%s]+" % punctuation, "", w)
+    # English punctuations
     # w = re.sub(r"[-()\"#/@;:<>{}`+=~|.!?,]", "", w)
     if pattern:
         _filterDict = {"": ""}
@@ -51,12 +51,12 @@ def clean_sentence(w, pattern=False):
 
 
 def predata_util():
-    if not os.path.exists(resource_path):
-        print(f"MISSING CORPUS, BE SURE THAT IT IS LOCATED UNDER {resource_path}")
+    if not os.path.exists(RESOURCE_DATA):
+        print(f"Missing Corpus. Confirm that it is located at {RESOURCE_DATA}")
         exit()
 
-    seq_train = open(seq_path, "w")
-    with open(resource_path, encoding="utf-8") as f:
+    seq_train = open(SEQ_DATA, "w")
+    with open(RESOURCE_DATA, encoding="utf-8") as f:
         one_conv = ""
         i = 0
         for line in f:
@@ -73,7 +73,7 @@ def predata_util():
             elif line[0] == gConfig["m"]:
                 one_conv = (
                     one_conv
-                    + str(clean_sentence(" ".join(jieba.cut(line.split(" ")[1]))))
+                    + str(clean_sentence(" ".join(tok(line.split(" ")[1]))))
                     + "\t"
                 )
     seq_train.close()
@@ -95,8 +95,8 @@ def create_vocab(lang, vocab_path, vocab_size):
 
 if __name__ == "__main__":
     predata_util()
-    lines = io.open(seq_path, encoding="utf-8").readlines()
+    lines = io.open(SEQ_DATA, encoding="utf-8").readlines()
     word_pairs = [[preprocess_sentence(w) for w in l.split("\t")] for l in lines]
     input_lang, target_lang = zip(*word_pairs)
-    create_vocab(input_lang, vocab_inp_path, vocab_inp_size)
-    create_vocab(target_lang, vocab_tar_path, vocab_tar_size)
+    create_vocab(input_lang, INPUT_VOCAB_PATH, INPUT_VOCAB_SIZE)
+    create_vocab(target_lang, TARGET_VOCAB_PATH, TARGET_VOCAB_SIZE)

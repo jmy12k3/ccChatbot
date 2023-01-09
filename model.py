@@ -1,34 +1,22 @@
+# coding=utf-8
 import tensorflow as tf
 import numpy as np
 
 from config import getConfig
 
-tf.config.run_functions_eagerly(True)
-
 
 gConfig = {}
 gConfig = getConfig.get_config()
 
+NUM_LAYERS = gConfig["num_layers"]
+D_MODEL = gConfig["d_model"]
+NUM_HEADS = gConfig["num_heads"]
+DFF = gConfig["dff"]
+INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
+TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
+DROPOUT_RATE = gConfig["dropout_rate"]
+
 CHECKPOINT_DIR = gConfig["model_data"]
-
-num_layers = gConfig["num_layers"]
-d_model = gConfig["d_model"]
-num_heads = gConfig["num_heads"]
-dff = gConfig["dff"]
-input_vocab_size = gConfig["vocab_inp_size"]
-target_vocab_size = gConfig["vocab_tar_size"]
-dropout_rate = gConfig["dropout_rate"]
-
-
-def create_padding_mask(seq):
-    seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
-
-    return seq[:, tf.newaxis, tf.newaxis, :]
-
-
-def create_look_ahead_mask(size):
-    mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
-    return mask
 
 
 def get_angles(pos, i, d_model):
@@ -324,7 +312,7 @@ train_loss = tf.keras.metrics.Mean(name="train_loss")
 train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="train_accuracy")
 
 
-"""class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
         super(CustomSchedule, self).__init__()
 
@@ -334,28 +322,38 @@ train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="train_accuracy
         self.warmup_steps = warmup_steps
 
     def __call__(self, step):
-        arg1 = tf.math.rsqrt(step)
-        arg2 = step * (self.warmup_steps**-1.5)
+        arg1 = tf.math.rsqrt(tf.cast(step, tf.float32))
+        arg2 = tf.cast(step, tf.float32) * (self.warmup_steps**-1.5)
 
-        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)"""
+        return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
 
-# learning_rate = CustomSchedule(d_model)
-learning_rate = 0.01
+learning_rate = CustomSchedule(D_MODEL)
 optimizer = tf.keras.optimizers.Adam(learning_rate, beta_2=0.98, epsilon=1e-8)
 transformer = Transformer(
-    num_layers,
-    d_model,
-    num_heads,
-    dff,
-    input_vocab_size,
-    target_vocab_size,
-    pe_input=input_vocab_size,
-    pe_target=target_vocab_size,
-    rate=dropout_rate,
+    NUM_LAYERS,
+    D_MODEL,
+    NUM_HEADS,
+    DFF,
+    INPUT_VOCAB_SIZE,
+    TARGET_VOCAB_SIZE,
+    pe_input=INPUT_VOCAB_SIZE,
+    pe_target=TARGET_VOCAB_SIZE,
+    rate=DROPOUT_RATE,
 )
 ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
 ckpt_manager = tf.train.CheckpointManager(ckpt, CHECKPOINT_DIR, max_to_keep=5)
+
+
+def create_padding_mask(seq):
+    seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
+
+    return seq[:, tf.newaxis, tf.newaxis, :]
+
+
+def create_look_ahead_mask(size):
+    mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
+    return mask
 
 
 def create_masks(inp, tar):
@@ -370,7 +368,13 @@ def create_masks(inp, tar):
     return enc_padding_mask, combined_mask, dec_padding_mask
 
 
-@tf.function()
+train_step_signature = [
+    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+]
+
+
+@tf.function(input_signature=train_step_signature)
 def train_step(inp, tar):
     tar_inp = tar[:, :-1]
     tar_real = tar[:, 1:]

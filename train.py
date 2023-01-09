@@ -3,7 +3,6 @@ import io
 import json
 import os
 
-import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -15,21 +14,13 @@ from config import getConfig
 gConfig = {}
 gConfig = getConfig.get_config()
 
+VOCAB_INP_SIZE = gConfig["vocab_inp_size"]
+VOCAB_TAR_SIZE = gConfig["vocab_tar_size"]
 MAX_LENGTH = gConfig["max_length"]
+
 CHECKPOINT_DIR = gConfig["model_data"]
-
-input_vocab_size = gConfig["vocab_inp_size"]
-target_vocab_size = gConfig["vocab_tar_size"]
-vocab_inp_path = gConfig["vocab_inp_path"]
-vocab_tar_path = gConfig["vocab_tar_path"]
-
-
-def train_test_split(word_pairs, test_size=0.2):
-    np.random.shuffle(word_pairs)
-    split_idx = int(len(word_pairs) * (1 - test_size))
-    train_word_pairs = word_pairs[:split_idx]
-    test_word_pairs = word_pairs[split_idx:]
-    return train_word_pairs, test_word_pairs
+VOCAB_INP_PATH = gConfig["vocab_inp_path"]
+VOCAB_TAR_PATH = gConfig["vocab_tar_path"]
 
 
 def tokenize(vocab_file):
@@ -43,49 +34,29 @@ def tokenize(vocab_file):
 
 def read_data(path):
     path = os.getcwd() + "/" + path
+
+    # Dataset Map
     lines = io.open(gConfig["seq_data"], encoding="utf-8").readlines()
     word_pairs = [
         [data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines
     ]
+    input_lang, target_lang = zip(*word_pairs)
 
-    train_word_pairs, test_word_pairs = train_test_split(word_pairs)
+    # Dataset Encode
+    input_tokenizer = tokenize(VOCAB_INP_PATH)
+    target_tokenizer = tokenize(VOCAB_TAR_PATH)
+    input_tensor = input_tokenizer.texts_to_sequences(input_lang)
+    target_tensor = target_tokenizer.texts_to_sequences(target_lang)
 
-    train_input_lang, train_target_lang = zip(*train_word_pairs)
-    test_input_lang, test_target_lang = zip(*test_word_pairs)
-
-    input_tokenizer = tokenize(vocab_inp_path)
-    target_tokenizer = tokenize(vocab_tar_path)
-
-    train_input_tensor = input_tokenizer.texts_to_sequences(train_input_lang)
-    train_target_tensor = target_tokenizer.texts_to_sequences(train_target_lang)
-    test_input_tensor = input_tokenizer.texts_to_sequences(test_input_lang)
-    test_target_tensor = target_tokenizer.texts_to_sequences(test_target_lang)
-
-    train_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        train_input_tensor, padding="post"
+    # Dataset Filter
+    input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        input_tensor, maxlen=MAX_LENGTH, padding="post"
     )
-    train_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        train_target_tensor, padding="post"
-    )
-    test_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        test_input_tensor, padding="post"
-    )
-    test_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        test_target_tensor, padding="post"
+    target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        target_tensor, maxlen=MAX_LENGTH, padding="post"
     )
 
-    return (
-        train_input_tensor,
-        test_input_tensor,
-        input_tokenizer,
-        train_target_tensor,
-        test_target_tensor,
-        target_tokenizer,
-    )
-
-
-def filter_max_length(x, y, max_length=MAX_LENGTH):
-    return tf.logical_and(tf.size(x) <= max_length, tf.size(y) <= max_length)
+    return input_tensor, input_tokenizer, target_tensor, target_tokenizer
 
 
 def train():
@@ -98,7 +69,7 @@ def train():
         model.train_accuracy.reset_state()
 
         for (batch, (inp, tar)) in tqdm(
-            enumerate(train_dataset.take(STEPS_PER_EPOCH)),
+            enumerate(dataset.take(STEPS_PER_EPOCH)),
             total=STEPS_PER_EPOCH,
             desc=f"epoch {epoch + 1}",
         ):
@@ -122,39 +93,53 @@ def train():
     # ...
 
 
+def predict(sentence, path=os.path.dirname(os.getcwd())):
+    input_tokenizer = tokenize(path + "/" + VOCAB_INP_PATH)
+    target_tokenizer = tokenize(path + "/" + VOCAB_TAR_PATH)
+
+    model.checkpoint.restore(tf.train.latest_checkpoint(path + "/" + CHECKPOINT_DIR))
+
+    sentence = (data_util.preprocess_sentence(sentence),)
+    inputs = input_tokenizer.texts_to_sequences(sentence)
+    inputs = tf.keras.preprocessing.sequence.pad_sequences(
+        inputs, maxlen=MAX_LENGTH, padding="post"
+    )
+    inputs = tf.convert_to_tensor(inputs)
+
+    result = ""
+
+    hidden = [tf.zeros((1, gConfig["layer_size"]))]
+    enc_out, enc_hidden = model.encoder(inputs, hidden)
+    dec_hidden = enc_hidden
+    dec_input = tf.expand_dims([target_tokenizer.word_index[data_util.SOS]], 0)
+
+    for _ in range(MAX_LENGTH):
+        predictions, dec_hidden, _ = model.decoder(dec_input, dec_hidden, enc_out)
+        predicted_id = tf.argmax(predictions[0]).numpy()
+        if target_tokenizer.index_word[predicted_id] == data_util.EOS:
+            break
+        result += str(target_tokenizer.index_word[predicted_id]) + " "
+        dec_input = tf.expand_dims([predicted_id], 0)
+
+    return result
+
+
 if __name__ == "__main__":
     EPOCHS = gConfig["epochs"]
     BATCH_SIZE = gConfig["batch_size"]
 
     writer = tf.summary.create_file_writer(gConfig["log_dir"])
 
-    (
-        train_input_tensor,
-        test_input_tensor,
-        input_tokenizer,
-        train_target_tensor,
-        test_target_tensor,
-        target_tokenzier,
-    ) = read_data(gConfig["seq_data"])
+    input_tensor, input_token, target_tensor, target_token = read_data(
+        gConfig["seq_data"]
+    )
 
-    BUFFER_SIZE = len(train_input_tensor)
+    BUFFER_SIZE = len(input_tensor)
     STEPS_PER_EPOCH = BUFFER_SIZE // BATCH_SIZE
 
-    train_dataset = tf.data.Dataset.from_tensor_slices(
-        (train_input_tensor, train_target_tensor)
-    )
-    train_dataset = train_dataset.filter(filter_max_length)
-    train_dataset = train_dataset.cache()
-    train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(
-        BATCH_SIZE, drop_remainder=True
-    )
-    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-
-    val_dataset = tf.data.Dataset.from_tensor_slices(
-        (test_input_tensor, test_target_tensor)
-    )
-    val_dataset = val_dataset.filter(filter_max_length).padded_batch(
-        BATCH_SIZE, drop_remainder=True
-    )
+    dataset = tf.data.Dataset.from_tensor_slices((input_tensor, target_tensor))
+    dataset = dataset.cache()
+    dataset = dataset.shuffle(BUFFER_SIZE).padded_batch(BATCH_SIZE, drop_remainder=True)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     train()
