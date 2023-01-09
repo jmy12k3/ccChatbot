@@ -4,17 +4,20 @@ import json
 import os
 import re
 
+import jieba
 import hanlp
 import tensorflow as tf
 from zhon.hanzi import punctuation
 
 from config import getConfig
 
-gConfig = {}
-gConfig = getConfig.get_config()
 
 SOS = "[START] "
 EOS = " [END]"
+
+
+gConfig = {}
+gConfig = getConfig.get_config()
 
 resource_path = gConfig["resource_data"]
 seq_path = gConfig["seq_data"]
@@ -22,6 +25,7 @@ vocab_inp_path = gConfig["vocab_inp_path"]
 vocab_tar_path = gConfig["vocab_tar_path"]
 vocab_inp_size = gConfig["vocab_inp_size"]
 vocab_tar_size = gConfig["vocab_tar_size"]
+
 
 # https://hanlp.hankcs.com/docs/api/hanlp/pretrained/tok.html
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
@@ -48,7 +52,7 @@ def clean_sentence(w, pattern=False):
 
 def predata_util():
     if not os.path.exists(resource_path):
-        print(f"Could not find corpus. Please confirm it is located at {resource_path}")
+        print(f"MISSING CORPUS, BE SURE THAT IT IS LOCATED UNDER {resource_path}")
         exit()
 
     seq_train = open(seq_path, "w")
@@ -69,7 +73,7 @@ def predata_util():
             elif line[0] == gConfig["m"]:
                 one_conv = (
                     one_conv
-                    + str(clean_sentence(" ".join(tok(line.split(" ")[1]))))
+                    + str(clean_sentence(" ".join(jieba.cut(line.split(" ")[1]))))
                     + "\t"
                 )
     seq_train.close()

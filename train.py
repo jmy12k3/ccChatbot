@@ -2,24 +2,34 @@
 import io
 import json
 import os
-import sys
 
+import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
 import data_util
 import model
-import callbacks
 from config import getConfig
+
 
 gConfig = {}
 gConfig = getConfig.get_config()
 
+MAX_LENGTH = gConfig["max_length"]
 CHECKPOINT_DIR = gConfig["model_data"]
-VOCAB_INP_PATH = gConfig["vocab_inp_path"]
-VOCAB_TAR_PATH = gConfig["vocab_tar_path"]
-MAX_LENGTH_INP = gConfig["max_length"]
-MAX_LENGTH_TAR = gConfig["max_length"]
+
+input_vocab_size = gConfig["vocab_inp_size"]
+target_vocab_size = gConfig["vocab_tar_size"]
+vocab_inp_path = gConfig["vocab_inp_path"]
+vocab_tar_path = gConfig["vocab_tar_path"]
+
+
+def train_test_split(word_pairs, test_size=0.2):
+    np.random.shuffle(word_pairs)
+    split_idx = int(len(word_pairs) * (1 - test_size))
+    train_word_pairs = word_pairs[:split_idx]
+    test_word_pairs = word_pairs[split_idx:]
+    return train_word_pairs, test_word_pairs
 
 
 def tokenize(vocab_file):
@@ -37,113 +47,79 @@ def read_data(path):
     word_pairs = [
         [data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines
     ]
-    input_lang, target_lang = zip(*word_pairs)
-    input_tokenizer = tokenize(VOCAB_INP_PATH)
-    target_tokenizer = tokenize(VOCAB_TAR_PATH)
-    input_tensor = input_tokenizer.texts_to_sequences(input_lang)
-    target_tensor = target_tokenizer.texts_to_sequences(target_lang)
-    input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        input_tensor, maxlen=MAX_LENGTH_INP, padding="post"
+
+    train_word_pairs, test_word_pairs = train_test_split(word_pairs)
+
+    train_input_lang, train_target_lang = zip(*train_word_pairs)
+    test_input_lang, test_target_lang = zip(*test_word_pairs)
+
+    input_tokenizer = tokenize(vocab_inp_path)
+    target_tokenizer = tokenize(vocab_tar_path)
+
+    train_input_tensor = input_tokenizer.texts_to_sequences(train_input_lang)
+    train_target_tensor = target_tokenizer.texts_to_sequences(train_target_lang)
+    test_input_tensor = input_tokenizer.texts_to_sequences(test_input_lang)
+    test_target_tensor = target_tokenizer.texts_to_sequences(test_target_lang)
+
+    train_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        train_input_tensor, padding="post"
     )
-    target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        target_tensor, maxlen=MAX_LENGTH_TAR, padding="post"
+    train_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        train_target_tensor, padding="post"
     )
-    return input_tensor, input_tokenizer, target_tensor, target_tokenizer
+    test_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        test_input_tensor, padding="post"
+    )
+    test_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        test_target_tensor, padding="post"
+    )
+
+    return (
+        train_input_tensor,
+        test_input_tensor,
+        input_tokenizer,
+        train_target_tensor,
+        test_target_tensor,
+        target_tokenizer,
+    )
+
+
+def filter_max_length(x, y, max_length=MAX_LENGTH):
+    return tf.logical_and(tf.size(x) <= max_length, tf.size(y) <= max_length)
 
 
 def train():
-    ckpt = tf.io.gfile.listdir(CHECKPOINT_DIR)
-    if ckpt:
-        print("Reloaded pretrained model!")
-        model.checkpoint.restore(tf.train.latest_checkpoint(CHECKPOINT_DIR))
+    if model.ckpt_manager.latest_checkpoint:
+        model.ckpt.restore(model.ckpt_manager.latest_checkpoint)
+        print("Latest checkpoint restored!")
 
-    epoch = 1
+    for epoch in range(EPOCHS):
+        model.train_loss.reset_state()
+        model.train_accuracy.reset_state()
 
-    while epoch <= EPOCHS:
-        # region on_epoch_begin
-        enc_callback.on_epoch_begin(epoch, logs=logs)
-        dec_callback.on_epoch_begin(epoch, logs=logs)
-        # endregion
-
-        for batch, (inp, targ) in tqdm(
-            enumerate(dataset.take(steps_per_epoch)),
-            total=steps_per_epoch,
-            desc=f"epoch {epoch}",
-            ascii="░▒█",
+        for (batch, (inp, tar)) in tqdm(
+            enumerate(train_dataset.take(STEPS_PER_EPOCH)),
+            total=STEPS_PER_EPOCH,
+            desc=f"epoch {epoch + 1}",
         ):
-            # region on_train_batch_begin, on_batch_begin
-            enc_callback.on_batch_begin(batch, logs=logs)
-            dec_callback.on_batch_begin(batch, logs=logs)
-            enc_callback.on_train_batch_begin(batch, logs=logs)
-            dec_callback.on_train_batch_begin(batch, logs=logs)
-            # endregion
-
-            batch_loss, train_acc = model.training_step(
-                inp, targ, target_token, enc_hidden
-            )
-
-            # region on_train_batch_end, on_batch_end
-            enc_callback.on_train_batch_end(batch, logs=logs)
-            dec_callback.on_train_batch_end(batch, logs=logs)
-            enc_callback.on_batch_end(batch, logs=logs)
-            dec_callback.on_batch_end(batch, logs=logs)
-            # endregion
+            model.train_step(inp, tar)
 
             with writer.as_default():
                 tf.summary.scalar(
-                    "batch loss", batch_loss, step=model.optimizer.iterations
+                    "train loss",
+                    model.train_loss.result(),
+                    step=batch,
                 )
                 tf.summary.scalar(
-                    "train accuracy", train_acc, step=model.optimizer.iterations
+                    "train accuracy",
+                    model.train_accuracy.result(),
+                    step=batch,
                 )
 
-        model.manager.save()
-        model.acc_metric.reset_state()
+        model.ckpt_manager.save()
 
-        # region on_epoch_end
-        enc_callback.on_epoch_end(epoch, logs=logs)
-        dec_callback.on_epoch_end(epoch, logs=logs)
-        # endregion
-
-        epoch += 1
-
-    # region on_train_end
-    enc_callback.on_train_end(logs=logs)
-    dec_callback.on_train_end(logs=logs)
-    # endregion
-
-    sys.stdout.flush()
-
-
-def predict(sentence, path=os.path.dirname(os.getcwd())):
-    input_tokenizer = tokenize(path + "/" + VOCAB_INP_PATH)
-    target_tokenizer = tokenize(path + "/" + VOCAB_TAR_PATH)
-
-    model.checkpoint.restore(tf.train.latest_checkpoint(path + "/" + CHECKPOINT_DIR))
-
-    sentence = (data_util.preprocess_sentence(sentence),)
-    inputs = input_tokenizer.texts_to_sequences(sentence)
-    inputs = tf.keras.preprocessing.sequence.pad_sequences(
-        inputs, maxlen=MAX_LENGTH_INP, padding="post"
-    )
-    inputs = tf.convert_to_tensor(inputs)
-
-    result = ""
-
-    hidden = [tf.zeros((1, gConfig["layer_size"]))]
-    enc_out, enc_hidden = model.encoder(inputs, hidden)
-    dec_hidden = enc_hidden
-    dec_input = tf.expand_dims([target_tokenizer.word_index[data_util.SOS]], 0)
-
-    for _ in range(MAX_LENGTH_TAR):
-        predictions, dec_hidden, _ = model.decoder(dec_input, dec_hidden, enc_out)
-        predicted_id = tf.argmax(predictions[0]).numpy()
-        if target_tokenizer.index_word[predicted_id] == data_util.EOS:
-            break
-        result += str(target_tokenizer.index_word[predicted_id]) + " "
-        dec_input = tf.expand_dims([predicted_id], 0)
-
-    return result
+    # test loop
+    # ...
 
 
 if __name__ == "__main__":
@@ -152,41 +128,33 @@ if __name__ == "__main__":
 
     writer = tf.summary.create_file_writer(gConfig["log_dir"])
 
-    input_tensor, _, target_tensor, target_token = read_data(gConfig["seq_data"])
-    BUFFER_SIZE = len(input_tensor)
-    steps_per_epoch = BUFFER_SIZE // BATCH_SIZE
-    dataset = tf.data.Dataset.from_tensor_slices((input_tensor, target_tensor)).shuffle(
-        BUFFER_SIZE
-    )
-    dataset = (
-        dataset.batch(BATCH_SIZE, drop_remainder=True)
-        .cache()
-        .prefetch(tf.data.AUTOTUNE)
-    )
-    enc_hidden = model.encoder.initialize_hidden_state()
+    (
+        train_input_tensor,
+        test_input_tensor,
+        input_tokenizer,
+        train_target_tensor,
+        test_target_tensor,
+        target_tokenzier,
+    ) = read_data(gConfig["seq_data"])
 
-    LRTracker = callbacks.AdamLearningRateTracker(writer=writer)
-    _callbacks = [LRTracker]
-    enc_callback = tf.keras.callbacks.CallbackList(
-        _callbacks, add_history=True, model=model.Encoder
-    )
-    dec_callback = tf.keras.callbacks.CallbackList(
-        _callbacks, add_history=True, model=model.Decoder
-    )
-    logs = {}
+    BUFFER_SIZE = len(train_input_tensor)
+    STEPS_PER_EPOCH = BUFFER_SIZE // BATCH_SIZE
 
-    # region on_train_begin
-    enc_callback.on_train_begin(logs=logs)
-    dec_callback.on_train_begin(logs=logs)
-    # endregion
+    train_dataset = tf.data.Dataset.from_tensor_slices(
+        (train_input_tensor, train_target_tensor)
+    )
+    train_dataset = train_dataset.filter(filter_max_length)
+    train_dataset = train_dataset.cache()
+    train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(
+        BATCH_SIZE, drop_remainder=True
+    )
+    train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+
+    val_dataset = tf.data.Dataset.from_tensor_slices(
+        (test_input_tensor, test_target_tensor)
+    )
+    val_dataset = val_dataset.filter(filter_max_length).padded_batch(
+        BATCH_SIZE, drop_remainder=True
+    )
 
     train()
-
-    enc_hist = dec_hist = None
-    for enc_cb, dec_cb in zip(enc_callback, dec_callback):
-        if isinstance(enc_cb, tf.keras.callbacks.History):
-            enc_hist = enc_cb
-        if isinstance(dec_cb, tf.keras.callbacks.History):
-            dec_hist = dec_cb
-
-    assert enc_hist and dec_hist is not None
