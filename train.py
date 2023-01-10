@@ -39,10 +39,8 @@ def tokenize(vocab_file):
 
 
 def read_data(path):
-    path = os.getcwd() + "/" + path
-
     # Dataset Map (Substitute to tf.data.dataset.map())
-    lines = io.open(gConfig["seq_data"], encoding="utf-8").readlines()
+    lines = io.open(path, encoding="utf-8").readlines()
     word_pairs = [
         [data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines
     ]
@@ -67,7 +65,6 @@ def read_data(path):
     train_target_tensor = []
     for (i, (x, y)) in tqdm(
         enumerate(zip(_train_input_tensor, _train_target_tensor)),
-        total=len(_train_input_tensor),
         ascii=" >=",
         desc="Train",
     ):
@@ -79,7 +76,6 @@ def read_data(path):
     val_target_tensor = []
     for (i, (x, y)) in tqdm(
         enumerate(zip(_val_input_tensor, _val_target_tensor)),
-        total=len(_val_input_tensor),
         ascii=" >=",
         desc="Validation",
     ):
@@ -88,7 +84,7 @@ def read_data(path):
             val_target_tensor.append(_val_target_tensor[i])
 
     print(
-        "Train dataset filtered:{}\nValidation dataset filtered:{}".format(
+        "Train dataset filtered: {}\nValidation dataset filtered: {}".format(
             len(_train_input_tensor) - len(train_input_tensor),
             len(_val_input_tensor) - len(val_input_tensor),
         )

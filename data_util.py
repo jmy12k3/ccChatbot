@@ -29,7 +29,7 @@ TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
 # https://hanlp.hankcs.com/docs/api/hanlp/pretrained/tok.html
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
 
-# Forced and combined dictionary usage
+# Forced and combined dictionary format
 # https://github.com/hankcs/HanLP/blob/doc-zh/plugins/hanlp_demo/hanlp_demo/zh/tok_stl.ipynb
 tok.dict_force = {}
 tok.dict_combine = {}
@@ -53,12 +53,12 @@ def clean_sentence(w, pattern=False):
     return w
 
 
-def predata_util():
+def conv_reader():
     if not os.path.exists(RESOURCE_DATA):
         print(f"Missing Corpus. Confirm that it is located at {RESOURCE_DATA}")
         exit()
 
-    seq_train = open(SEQ_DATA, "w")
+    seq = open(SEQ_DATA, "w")
     with open(RESOURCE_DATA, encoding="utf-8") as f:
         one_conv = ""
         i = 0
@@ -66,20 +66,20 @@ def predata_util():
             line = line.strip("\n")
             if line == "":
                 continue
-            if line[0] == gConfig["e"]:
+            if line[0] == "E":
                 if one_conv:
-                    seq_train.write(one_conv[:-1] + "\n")
+                    seq.write(one_conv[:-1] + "\n")
                 one_conv = ""
                 i += 1
                 if i % 1000 == 0:
                     print(f"Processed: {i}")
-            elif line[0] == gConfig["m"]:
+            elif line[0] == "M":
                 one_conv = (
                     one_conv
                     + str(clean_sentence(" ".join(tok(line.split(" ")[1]))))
                     + "\t"
                 )
-    seq_train.close()
+    seq.close()
 
 
 def create_vocab(lang, vocab_path, vocab_size):
@@ -97,7 +97,7 @@ def create_vocab(lang, vocab_path, vocab_size):
 
 
 if __name__ == "__main__":
-    predata_util()
+    conv_reader()
     lines = io.open(SEQ_DATA, encoding="utf-8").readlines()
     word_pairs = [[preprocess_sentence(w) for w in l.split("\t")] for l in lines]
     input_lang, target_lang = zip(*word_pairs)
