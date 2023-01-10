@@ -11,8 +11,8 @@ from zhon.hanzi import punctuation
 from config import getConfig
 
 
-SOS = "[START] "
-EOS = " [END]"
+SOS = "start "
+EOS = " end"
 
 gConfig = {}
 gConfig = getConfig.get_config()

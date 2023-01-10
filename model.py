@@ -14,11 +14,11 @@ NUM_LAYERS = gConfig["num_layers"]
 D_MODEL = gConfig["d_model"]
 NUM_HEADS = gConfig["num_heads"]
 DFF = gConfig["dff"]
-INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
-TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
+INPUT_VOCAB_SIZE = gConfig["input_vocab_size"] + 2
+TARGET_VOCAB_SIZE = gConfig["target_vocab_size"] + 2
 DROPOUT_RATE = gConfig["dropout_rate"]
 
-CHECKPOINT_DIR = gConfig["model_data"]
+CHECKPOINT_PATH = gConfig["model_data"]
 
 
 def get_angles(pos, i, d_model):
@@ -331,7 +331,7 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 learning_rate = CustomSchedule(D_MODEL)
-optimizer = tf.keras.optimizers.Adam(learning_rate, beta_2=0.98, epsilon=1e-8)
+optimizer = tf.keras.optimizers.Adam(learning_rate, beta_2=0.98, epsilon=1e-9)
 transformer = Transformer(
     NUM_LAYERS,
     D_MODEL,
@@ -344,7 +344,7 @@ transformer = Transformer(
     rate=DROPOUT_RATE,
 )
 ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
-ckpt_manager = tf.train.CheckpointManager(ckpt, CHECKPOINT_DIR, max_to_keep=2)
+ckpt_manager = tf.train.CheckpointManager(ckpt, CHECKPOINT_PATH, max_to_keep=2)
 
 
 def create_padding_mask(seq):

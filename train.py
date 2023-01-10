@@ -94,13 +94,17 @@ def read_data(path):
 
     # Pad
     train_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        train_input_tensor
+        train_input_tensor, maxlen=MAX_LENGTH
     )
     train_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        train_target_tensor
+        train_target_tensor, maxlen=MAX_LENGTH
     )
-    val_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(val_input_tensor)
-    val_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(val_target_tensor)
+    val_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        val_input_tensor, maxlen=MAX_LENGTH
+    )
+    val_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        val_target_tensor, maxlen=MAX_LENGTH
+    )
 
     return (
         train_input_tensor,
@@ -157,28 +161,28 @@ def train():
             tf.summary.scalar("test accuracy", model.accuracy.result(), step=batch)
 
 
-def predict(inp_sentence):
-    input_tokenizer = tokenize(os.path.dirname(os.getcwd()) + "/" + INPUT_VOCAB_PATH)
-    target_tokenizer = tokenize(os.path.dirname(os.getcwd() + "/" + TARGET_VOCAB_PATH))
+def predict(sentence):
+    input_tokenizer = tokenize(INPUT_VOCAB_PATH)
+    target_tokenizer = tokenize(TARGET_VOCAB_PATH)
 
     model.ckpt.restore(model.ckpt_manager.latest_checkpoint)
 
-    inp_sentence = input_tokenizer.texts_to_sequences(
-        data_util.preprocess_sentence(inp_sentence)
+    encoder_input = input_tokenizer.texts_to_sequences(
+        [data_util.preprocess_sentence(sentence)]
     )
-    encoder_input = tf.expand_dims(inp_sentence, 0)
-
-    decoder_input = [target_tokenizer.word_index[data_util.SOS]]
-    output = tf.expand_dims(decoder_input, 0)
+    encoder_input = tf.keras.preprocessing.sequence.pad_sequences(
+        encoder_input, maxlen=MAX_LENGTH
+    )
+    output = tf.expand_dims([target_tokenizer.word_index[data_util.SOS.rstrip()]], 0)
 
     result = ""
+    lookup = {v: k for k, v in target_tokenizer.word_index.items()}
 
     for _ in range(MAX_LENGTH):
         enc_padding_mask, combined_mask, dec_padding_mask = model.create_masks(
             encoder_input, output
         )
-
-        predictions, _ = model.transformer(
+        predictions, attention_weights = model.transformer(
             encoder_input,
             output,
             False,
@@ -186,19 +190,14 @@ def predict(inp_sentence):
             combined_mask,
             dec_padding_mask,
         )
-
         predictions = predictions[:, -1:, :]
-
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
-
-        if target_tokenizer.index_word[predicted_id] == data_util.EOS:
+        if predicted_id == target_tokenizer.word_index[data_util.EOS.rstrip()]:
             break
-
-        result += str(target_tokenizer.index_word[predicted_id]) + " "
-
+        result += str(lookup[predicted_id]) + " "
         output = tf.concat([output, predicted_id], axis=-1)
 
-    return result
+    return tf.squeeze(output, axis=0), attention_weights
 
 
 if __name__ == "__main__":
