@@ -89,7 +89,7 @@ def train():
 
     for epoch in range(EPOCHS):
         model.train_loss.reset_state()
-        model.train_accuracy.reset_state()
+        model.accuracy.reset_state()
 
         for (batch, (inp, tar)) in tqdm(
             enumerate(train_dataset),
@@ -107,13 +107,13 @@ def train():
                 )
                 tf.summary.scalar(
                     "train accuracy",
-                    model.train_accuracy.result(),
+                    model.accuracy.result(),
                     step=model.optimizer.iterations,
                 )
 
         model.ckpt_manager.save()
 
-    model.test_accuracy.reset_state()
+    model.accuracy.reset_state()
     for (batch, (inp, tar)) in tqdm(
         enumerate(val_dataset),
         total=(len(val_input_tensor) // BATCH_SIZE),
@@ -123,7 +123,7 @@ def train():
         model.test_step(inp, tar)
 
         with writer.as_default():
-            tf.summary.scalar("test accuracy", model.test_accuracy.result(), step=batch)
+            tf.summary.scalar("test accuracy", model.accuracy.result(), step=batch)
 
 
 def evaluate(inp_sentence):
@@ -147,7 +147,7 @@ def evaluate(inp_sentence):
             encoder_input, output
         )
 
-        predictions, attention_weights = model.transformer(
+        predictions, _ = model.transformer(
             encoder_input,
             output,
             False,

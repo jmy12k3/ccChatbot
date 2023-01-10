@@ -311,8 +311,7 @@ def loss_function(real, pred):
 
 
 train_loss = tf.keras.metrics.Mean(name="train_loss")
-train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="train_accuracy")
-test_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="test_accuracy")
+accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name="train_accuracy")
 
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -393,11 +392,11 @@ def train_step(inp, tar):
     gradients = tape.gradient(loss, transformer.trainable_variables)
     optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
 
-    train_loss.update_state(loss)
-    train_accuracy.update_state(tar_real, predictions)
+    train_loss(loss)
+    accuracy(tar_real, predictions)
 
 
 @tf.function(input_signature=signature)
 def test_step(inp, tar):
     predictions = transformer(inp, training=False)
-    test_accuracy.update_state(tar, predictions)
+    accuracy(tar, predictions)
