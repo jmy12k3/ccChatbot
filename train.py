@@ -53,6 +53,7 @@ def read_data(path):
     # Encode
     input_tokenizer = tokenize(INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(TARGET_VOCAB_PATH)
+
     _train_input_tensor = input_tokenizer.texts_to_sequences(train_input_lang)
     _train_target_tensor = target_tokenizer.texts_to_sequences(train_target_lang)
     _val_input_tensor = input_tokenizer.texts_to_sequences(val_input_lang)
@@ -63,8 +64,12 @@ def read_data(path):
 
     train_input_tensor = []
     train_target_tensor = []
+
+    assert len(_train_input_tensor) == len(_train_target_tensor)
+
     for (i, (x, y)) in tqdm(
         enumerate(zip(_train_input_tensor, _train_target_tensor)),
+        total=len(_train_input_tensor),
         ascii=" >=",
         desc="Train",
     ):
@@ -74,21 +79,18 @@ def read_data(path):
 
     val_input_tensor = []
     val_target_tensor = []
+
+    assert len(_val_input_tensor) == len(_val_target_tensor)
+
     for (i, (x, y)) in tqdm(
         enumerate(zip(_val_input_tensor, _val_target_tensor)),
+        total=len(_val_input_tensor),
         ascii=" >=",
         desc="Validation",
     ):
         if tf.logical_and(tf.size(x) <= MAX_LENGTH, tf.size(y) <= MAX_LENGTH):
             val_input_tensor.append(_val_input_tensor[i])
             val_target_tensor.append(_val_target_tensor[i])
-
-    print(
-        "Train dataset filtered: {}\nValidation dataset filtered: {}".format(
-            len(_train_input_tensor) - len(train_input_tensor),
-            len(_val_input_tensor) - len(val_input_tensor),
-        )
-    )
 
     # Pad
     train_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
