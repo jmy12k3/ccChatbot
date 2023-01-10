@@ -344,7 +344,7 @@ transformer = Transformer(
     rate=DROPOUT_RATE,
 )
 ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
-ckpt_manager = tf.train.CheckpointManager(ckpt, CHECKPOINT_DIR, max_to_keep=5)
+ckpt_manager = tf.train.CheckpointManager(ckpt, CHECKPOINT_DIR, max_to_keep=2)
 
 
 def create_padding_mask(seq):

@@ -21,6 +21,14 @@ INPUT_VOCAB_PATH = gConfig["input_vocab_path"]
 TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 
+def train_test_split(dataset, test_size=0.2):
+    np.random.shuffle(dataset)
+    idx = int(len(dataset) * (1 - test_size))
+    train_dataset = dataset[:idx]
+    test_dataset = dataset[idx:]
+    return train_dataset, test_dataset
+
+
 def tokenize(vocab_file):
     with open(vocab_file, "r", encoding="utf-8") as f:
         tokenize_config = json.dumps(json.load(f), ensure_ascii=False)
@@ -30,47 +38,71 @@ def tokenize(vocab_file):
     return lang_tokenizer
 
 
-def train_test_split(dataset, test_size=0.2):
-    np.random.shuffle(dataset)
-    idx = int(len(dataset) * (1 - test_size))
-    train_dataset = dataset[:idx]
-    test_dataset = dataset[idx:]
-    return train_dataset, test_dataset
-
-
 def read_data(path):
     path = os.getcwd() + "/" + path
 
-    # Dataset Map
+    # Dataset Map (Substitute to tf.data.dataset.map())
     lines = io.open(gConfig["seq_data"], encoding="utf-8").readlines()
     word_pairs = [
         [data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines
     ]
+
+    # Split
     train_word_pairs, val_word_pairs = train_test_split(word_pairs)
     train_input_lang, train_target_lang = zip(*train_word_pairs)
     val_input_lang, val_target_lang = zip(*val_word_pairs)
 
-    # Dataset Encode
+    # Encode
     input_tokenizer = tokenize(INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(TARGET_VOCAB_PATH)
-    train_input_tensor = input_tokenizer.texts_to_sequences(train_input_lang)
-    train_target_tensor = target_tokenizer.texts_to_sequences(train_target_lang)
-    val_input_tensor = input_tokenizer.texts_to_sequences(val_input_lang)
-    val_target_tensor = target_tokenizer.texts_to_sequences(val_target_lang)
+    _train_input_tensor = input_tokenizer.texts_to_sequences(train_input_lang)
+    _train_target_tensor = target_tokenizer.texts_to_sequences(train_target_lang)
+    _val_input_tensor = input_tokenizer.texts_to_sequences(val_input_lang)
+    _val_target_tensor = target_tokenizer.texts_to_sequences(val_target_lang)
 
-    # Dataset Filter
+    # Dataset Filter (Substitute to tf.data.dataset.filter())
+    print("Filtering dataset...")
+
+    train_input_tensor = []
+    train_target_tensor = []
+    for (i, (x, y)) in tqdm(
+        enumerate(zip(_train_input_tensor, _train_target_tensor)),
+        total=len(_train_input_tensor),
+        ascii=" >=",
+        desc="Train",
+    ):
+        if tf.logical_and(tf.size(x) <= MAX_LENGTH, tf.size(y) <= MAX_LENGTH):
+            train_input_tensor.append(_train_input_tensor[i])
+            train_target_tensor.append(_train_target_tensor[i])
+
+    val_input_tensor = []
+    val_target_tensor = []
+    for (i, (x, y)) in tqdm(
+        enumerate(zip(_val_input_tensor, _val_target_tensor)),
+        total=len(_val_input_tensor),
+        ascii=" >=",
+        desc="Validation",
+    ):
+        if tf.logical_and(tf.size(x) <= MAX_LENGTH, tf.size(y) <= MAX_LENGTH):
+            val_input_tensor.append(_val_input_tensor[i])
+            val_target_tensor.append(_val_target_tensor[i])
+
+    print(
+        "Train dataset filtered:{}\nValidation dataset filtered:{}".format(
+            len(_train_input_tensor) - len(train_input_tensor),
+            len(_val_input_tensor) - len(val_input_tensor),
+        )
+    )
+
+    # Pad
     train_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        train_input_tensor, maxlen=MAX_LENGTH, padding="post"
+        train_input_tensor
     )
     train_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        train_target_tensor, maxlen=MAX_LENGTH, padding="post"
+        train_target_tensor
     )
-    val_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        val_input_tensor, maxlen=MAX_LENGTH, padding="post"
-    )
-    val_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        val_target_tensor, maxlen=MAX_LENGTH, padding="post"
-    )
+    val_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(val_input_tensor)
+    val_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(val_target_tensor)
 
     return (
         train_input_tensor,
@@ -95,7 +127,7 @@ def train():
             enumerate(train_dataset),
             total=STEPS_PER_EPOCH,
             ascii=" >=",
-            desc=f"epoch {epoch + 1}",
+            desc=f"Epoch {epoch + 1}",
         ):
             model.train_step(inp, tar)
 
@@ -114,11 +146,12 @@ def train():
         model.ckpt_manager.save()
 
     model.accuracy.reset_state()
+
     for (batch, (inp, tar)) in tqdm(
         enumerate(val_dataset),
         total=(len(val_input_tensor) // BATCH_SIZE),
         ascii=" >=",
-        desc=f"test {epoch}",
+        desc="Validation",
     ):
         model.test_step(inp, tar)
 
@@ -126,7 +159,7 @@ def train():
             tf.summary.scalar("test accuracy", model.accuracy.result(), step=batch)
 
 
-def evaluate(inp_sentence):
+def predict(inp_sentence):
     input_tokenizer = tokenize(os.path.dirname(os.getcwd()) + "/" + INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(os.path.dirname(os.getcwd() + "/" + TARGET_VOCAB_PATH))
 
