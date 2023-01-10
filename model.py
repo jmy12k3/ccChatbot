@@ -371,13 +371,13 @@ def create_masks(inp, tar):
     return enc_padding_mask, combined_mask, dec_padding_mask
 
 
-step_signature = [
+signature = [
     tf.TensorSpec(shape=(None, None), dtype=tf.int64),
     tf.TensorSpec(shape=(None, None), dtype=tf.int64),
 ]
 
 
-@tf.function(input_signature=step_signature)
+@tf.function(input_signature=signature)
 def train_step(inp, tar):
     tar_inp = tar[:, :-1]
     tar_real = tar[:, 1:]
@@ -393,11 +393,11 @@ def train_step(inp, tar):
     gradients = tape.gradient(loss, transformer.trainable_variables)
     optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
 
-    train_loss(loss)
-    train_accuracy(tar_real, predictions)
+    train_loss.update_state(loss)
+    train_accuracy.update_state(tar_real, predictions)
 
 
-@tf.function(input_signature=step_signature)
+@tf.function(input_signature=signature)
 def test_step(inp, tar):
     predictions = transformer(inp, training=False)
-    test_accuracy(tar, predictions)
+    test_accuracy.update_state(tar, predictions)

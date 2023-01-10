@@ -17,7 +17,6 @@ gConfig = getConfig.get_config()
 
 MAX_LENGTH = gConfig["max_length"]
 
-CHECKPOINT_DIR = gConfig["model_data"]
 INPUT_VOCAB_PATH = gConfig["input_vocab_path"]
 TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 

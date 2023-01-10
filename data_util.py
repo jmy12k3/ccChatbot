@@ -17,17 +17,18 @@ EOS = " [END]"
 gConfig = {}
 gConfig = getConfig.get_config()
 
-INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
-TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
-
 RESOURCE_DATA = gConfig["resource_data"]
 SEQ_DATA = gConfig["seq_data"]
 INPUT_VOCAB_PATH = gConfig["input_vocab_path"]
 TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
+INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
+TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
+
 
 # List of available pretrained models
 # https://hanlp.hankcs.com/docs/api/hanlp/pretrained/tok.html
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
+
 # Forced and combined dictionary usage
 # https://github.com/hankcs/HanLP/blob/doc-zh/plugins/hanlp_demo/hanlp_demo/zh/tok_stl.ipynb
 tok.dict_force = {}
