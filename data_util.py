@@ -10,41 +10,23 @@ from zhon.hanzi import punctuation
 
 from config import getConfig
 
+SOS = "start"
+EOS = "end"
 
-SOS = "start "
-EOS = " end"
-
-gConfig = {}
-gConfig = getConfig.get_config()
-
-RESOURCE_DATA = gConfig["resource_data"]
-SEQ_DATA = gConfig["seq_data"]
-INPUT_VOCAB_PATH = gConfig["input_vocab_path"]
-TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
-INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
-TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
-
-
-# List of available pretrained models
-# https://hanlp.hankcs.com/docs/api/hanlp/pretrained/tok.html
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
-
-# Forced and combined dictionary format
-# https://github.com/hankcs/HanLP/blob/doc-zh/plugins/hanlp_demo/hanlp_demo/zh/tok_stl.ipynb
 tok.dict_force = {}
 tok.dict_combine = {}
 
 
+# Helper function 1
 def preprocess_sentence(w):
-    w = SOS + w.rstrip() + EOS
+    w = f"{SOS} " + w.rstrip() + f" {EOS}"
     return w
 
 
+# Helper function 2
 def clean_sentence(w, pattern=False):
-    # Chinese punctuations
     w = re.sub(r"[%s]+" % punctuation, "", w)
-    # English punctuations
-    # w = re.sub(r"[-()\"#/@;:<>{}`+=~|.!?,]", "", w)
     if pattern:
         _filterDict = {"": ""}
         filterDict = dict((re.escape(k), v) for k, v in _filterDict.items())
@@ -53,9 +35,11 @@ def clean_sentence(w, pattern=False):
     return w
 
 
-def conv_reader():
+# Reference:
+# https://github.com/zhaoyingjun/chatbot/blob/9533385c5a89053192a6a2f1c05f3d3f13490368/Chatbot-tensowflow2.0/Seq2seqchatbot/data_util.py#L20
+def create_sequence():
     if not os.path.exists(RESOURCE_DATA):
-        print(f"Missing Corpus. Confirm that it is located at {RESOURCE_DATA}")
+        print(f"Could not find Corpus. Make sure that it is located at {SEQ_DATA}")
         exit()
 
     seq = open(SEQ_DATA, "w")
@@ -82,6 +66,8 @@ def conv_reader():
     seq.close()
 
 
+# Reference:
+# https://github.com/zhaoyingjun/chatbot/blob/9533385c5a89053192a6a2f1c05f3d3f13490368/Chatbot-tensowflow2.0/Seq2seqchatbot/data_util.py#L51
 def create_vocab(lang, vocab_path, vocab_size):
     tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=vocab_size, oov_token=3)
     tokenizer.fit_on_texts(lang)
@@ -97,9 +83,19 @@ def create_vocab(lang, vocab_path, vocab_size):
 
 
 if __name__ == "__main__":
-    conv_reader()
+    gConfig = {}
+    gConfig = getConfig.get_config()
+
+    RESOURCE_DATA = gConfig["resource_data"]
+    SEQ_DATA = gConfig["seq_data"]
+    INPUT_VOCAB_PATH = gConfig["input_vocab_path"]
+    INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
+    TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
+    TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
+
+    create_sequence()
     lines = io.open(SEQ_DATA, encoding="utf-8").readlines()
-    word_pairs = [[preprocess_sentence(w) for w in l.split("\t")] for l in lines]
-    input_lang, target_lang = zip(*word_pairs)
-    create_vocab(input_lang, INPUT_VOCAB_PATH, INPUT_VOCAB_SIZE)
-    create_vocab(target_lang, TARGET_VOCAB_PATH, TARGET_VOCAB_SIZE)
+    pairs = [[preprocess_sentence(w) for w in l.split("\t")] for l in lines]
+    input, target = zip(*pairs)
+    create_vocab(input, INPUT_VOCAB_PATH, INPUT_VOCAB_SIZE)
+    create_vocab(target, TARGET_VOCAB_PATH, TARGET_VOCAB_SIZE)
