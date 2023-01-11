@@ -21,6 +21,7 @@ TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 
 def train_test_split(dataset, test_size=0.2):
+    # depends on the data
     # np.random.shuffle(dataset)
     idx = int(len(dataset) * (1 - test_size))
     train_dataset = dataset[:idx]
