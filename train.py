@@ -1,16 +1,15 @@
 # coding=utf-8
 import io
 import json
-import os
 
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+from tqdm.contrib import tzip
 
 import data_util
 import model
 from config import getConfig
-
 
 gConfig = {}
 gConfig = getConfig.get_config()
@@ -32,65 +31,48 @@ def train_test_split(dataset, test_size=0.2):
 def tokenize(vocab_file):
     with open(vocab_file, "r", encoding="utf-8") as f:
         tokenize_config = json.dumps(json.load(f), ensure_ascii=False)
-        lang_tokenizer = tf.keras.preprocessing.text.tokenizer_from_json(
-            tokenize_config
-        )
-    return lang_tokenizer
+        tokenizer = tf.keras.preprocessing.text.tokenizer_from_json(tokenize_config)
+    return tokenizer
 
 
 def read_data(path):
     # Dataset Map (Substitute to tf.data.dataset.map())
     lines = io.open(path, encoding="utf-8").readlines()
-    word_pairs = [
-        [data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines
-    ]
+    pairs = [[data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines]
 
     # Split
-    train_word_pairs, val_word_pairs = train_test_split(word_pairs)
-    train_input_lang, train_target_lang = zip(*train_word_pairs)
-    val_input_lang, val_target_lang = zip(*val_word_pairs)
+    train_pairs, test_pairs = train_test_split(pairs)
+    train_input, train_target = zip(*train_pairs)
+    test_input, test_target = zip(*test_pairs)
 
     # Encode
     input_tokenizer = tokenize(INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(TARGET_VOCAB_PATH)
 
-    _train_input_tensor = input_tokenizer.texts_to_sequences(train_input_lang)
-    _train_target_tensor = target_tokenizer.texts_to_sequences(train_target_lang)
-    _val_input_tensor = input_tokenizer.texts_to_sequences(val_input_lang)
-    _val_target_tensor = target_tokenizer.texts_to_sequences(val_target_lang)
+    train_input_tensor = input_tokenizer.texts_to_sequences(train_input)
+    train_target_tensor = target_tokenizer.texts_to_sequences(train_target)
+    test_input_tensor = input_tokenizer.texts_to_sequences(test_input)
+    test_target_tensor = target_tokenizer.texts_to_sequences(test_target)
 
     # Dataset Filter (Substitute to tf.data.dataset.filter())
     print("Filtering dataset...")
 
-    train_input_tensor = []
-    train_target_tensor = []
+    assert len(train_input_tensor) == len(train_target_tensor)
+    assert len(test_input_tensor) == len(test_target_tensor)
 
-    assert len(_train_input_tensor) == len(_train_target_tensor)
-
-    for (i, (x, y)) in tqdm(
-        enumerate(zip(_train_input_tensor, _train_target_tensor)),
-        total=len(_train_input_tensor),
-        ascii=" >=",
-        desc="Train",
+    for (i, (x, y)) in enumerate(
+        tzip(train_input_tensor, train_target_tensor, ascii=" >=", desc="Train")
     ):
-        if tf.logical_and(tf.size(x) <= MAX_LENGTH, tf.size(y) <= MAX_LENGTH):
-            train_input_tensor.append(_train_input_tensor[i])
-            train_target_tensor.append(_train_target_tensor[i])
+        if tf.logical_or(tf.size(x) > MAX_LENGTH, tf.size(y) > MAX_LENGTH):
+            train_input_tensor.remove(train_input_tensor[i])
+            train_target_tensor.remove(train_target_tensor[i])
 
-    val_input_tensor = []
-    val_target_tensor = []
-
-    assert len(_val_input_tensor) == len(_val_target_tensor)
-
-    for (i, (x, y)) in tqdm(
-        enumerate(zip(_val_input_tensor, _val_target_tensor)),
-        total=len(_val_input_tensor),
-        ascii=" >=",
-        desc="Validation",
+    for (i, (x, y)) in enumerate(
+        tzip(test_input_tensor, test_target_tensor, ascii=" >=", desc="Test")
     ):
-        if tf.logical_and(tf.size(x) <= MAX_LENGTH, tf.size(y) <= MAX_LENGTH):
-            val_input_tensor.append(_val_input_tensor[i])
-            val_target_tensor.append(_val_target_tensor[i])
+        if tf.logical_or(tf.size(x) > MAX_LENGTH, tf.size(y) > MAX_LENGTH):
+            test_input_tensor.remove(test_input_tensor[i])
+            test_target_tensor.remove(test_target_tensor[i])
 
     # Pad
     train_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
@@ -99,18 +81,18 @@ def read_data(path):
     train_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
         train_target_tensor, maxlen=MAX_LENGTH
     )
-    val_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        val_input_tensor, maxlen=MAX_LENGTH
+    test_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        test_input_tensor, maxlen=MAX_LENGTH
     )
-    val_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
-        val_target_tensor, maxlen=MAX_LENGTH
+    test_target_tensor = tf.keras.preprocessing.sequence.pad_sequences(
+        test_target_tensor, maxlen=MAX_LENGTH
     )
 
     return (
         train_input_tensor,
         train_target_tensor,
-        val_input_tensor,
-        val_target_tensor,
+        test_input_tensor,
+        test_target_tensor,
         input_tokenizer,
         target_tokenizer,
     )
@@ -119,17 +101,14 @@ def read_data(path):
 def train():
     if model.ckpt_manager.latest_checkpoint:
         model.ckpt.restore(model.ckpt_manager.latest_checkpoint)
-        print("Latest checkpoint restored!")
+        print("\nLatest checkpoint restored!")
 
-    for epoch in range(EPOCHS):
+    for epoch in range(EPOCH):
         model.train_loss.reset_state()
         model.accuracy.reset_state()
 
-        for (batch, (inp, tar)) in tqdm(
-            enumerate(train_dataset),
-            total=STEPS_PER_EPOCH,
-            ascii=" >=",
-            desc=f"Epoch {epoch + 1}",
+        for (batch, (inp, tar)) in enumerate(
+            tqdm(train_dataset, ascii=" >=", desc=f"Epoch {epoch}")
         ):
             model.train_step(inp, tar)
 
@@ -149,12 +128,7 @@ def train():
 
     model.accuracy.reset_state()
 
-    for (batch, (inp, tar)) in tqdm(
-        enumerate(val_dataset),
-        total=(len(val_input_tensor) // BATCH_SIZE),
-        ascii=" >=",
-        desc="Validation",
-    ):
+    for (batch, (inp, tar)) in enumerate(tqdm(test_dataset, ascii=" >=", desc="Test")):
         model.test_step(inp, tar)
 
         with writer.as_default():
@@ -162,10 +136,12 @@ def train():
 
 
 def predict(sentence):
+    model.ckpt.restore(model.ckpt_manager.latest_checkpoint)
+
+    sentence = data_util.tok(sentence)
+
     input_tokenizer = tokenize(INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(TARGET_VOCAB_PATH)
-
-    model.ckpt.restore(model.ckpt_manager.latest_checkpoint)
 
     encoder_input = input_tokenizer.texts_to_sequences(
         [data_util.preprocess_sentence(sentence)]
@@ -173,16 +149,18 @@ def predict(sentence):
     encoder_input = tf.keras.preprocessing.sequence.pad_sequences(
         encoder_input, maxlen=MAX_LENGTH
     )
-    output = tf.expand_dims([target_tokenizer.word_index[data_util.SOS.rstrip()]], 0)
+    decoder_input = [target_tokenizer.word_index[data_util.SOS]]
+    output = tf.expand_dims(decoder_input, 0)
 
     result = ""
-    lookup = {v: k for k, v in target_tokenizer.word_index.items()}
+    index_word = {v: k for k, v in target_tokenizer.word_index.items()}
 
     for _ in range(MAX_LENGTH):
         enc_padding_mask, combined_mask, dec_padding_mask = model.create_masks(
             encoder_input, output
         )
-        predictions, attention_weights = model.transformer(
+
+        predictions, _ = model.transformer(
             encoder_input,
             output,
             False,
@@ -190,33 +168,39 @@ def predict(sentence):
             combined_mask,
             dec_padding_mask,
         )
+
         predictions = predictions[:, -1:, :]
+
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
-        if predicted_id == target_tokenizer.word_index[data_util.EOS.rstrip()]:
+
+        if predicted_id == target_tokenizer.word_index[data_util.EOS]:
             break
-        result += str(lookup[predicted_id]) + " "
+
+        result += str(index_word[int(predicted_id)]) + " "
+
         output = tf.concat([output, predicted_id], axis=-1)
 
-    return tf.squeeze(output, axis=0), attention_weights
+    return result
 
 
 if __name__ == "__main__":
-    EPOCHS = gConfig["epochs"]
     BATCH_SIZE = gConfig["batch_size"]
+    EPOCH = gConfig["epoch"]
 
-    writer = tf.summary.create_file_writer(gConfig["log_dir"])
+    LOG_DIR = gConfig["log_dir"]
+    writer = tf.summary.create_file_writer(LOG_DIR)
 
+    SEQ_DATA = gConfig["seq_data"]
     (
         train_input_tensor,
         train_target_tensor,
-        val_input_tensor,
-        val_target_tensor,
+        test_input_tensor,
+        test_target_tensor,
         _,
-        target_tokenizer,
-    ) = read_data(gConfig["seq_data"])
+        _,
+    ) = read_data(SEQ_DATA)
 
     BUFFER_SIZE = len(train_input_tensor)
-    STEPS_PER_EPOCH = BUFFER_SIZE // BATCH_SIZE
 
     train_dataset = tf.data.Dataset.from_tensor_slices(
         (train_input_tensor, train_target_tensor)
@@ -227,9 +211,9 @@ if __name__ == "__main__":
     )
     train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-    val_dataset = tf.data.Dataset.from_tensor_slices(
-        (val_input_tensor, val_target_tensor)
+    test_dataset = tf.data.Dataset.from_tensor_slices(
+        (test_input_tensor, test_target_tensor)
     )
-    val_dataset = val_dataset.padded_batch(BATCH_SIZE, drop_remainder=True)
+    test_dataset = test_dataset.padded_batch(BATCH_SIZE, drop_remainder=True)
 
     train()

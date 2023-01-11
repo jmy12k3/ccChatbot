@@ -4,15 +4,7 @@ import threading
 
 from flask import Flask, render_template, request, jsonify
 
-import data_util
 import train
-from config import getConfig
-
-
-gConfig = {}
-gConfig = getConfig.get_config()
-
-tok = data_util.tok
 
 
 def heartbeat():
@@ -30,7 +22,6 @@ app = Flask(__name__, static_url_path="/static")
 @app.route("/message", methods=["POST"])
 def reply():
     req_msg = request.form["msg"]
-    req_msg = " ".join(tok(req_msg))
     res_msg = train.predict(req_msg)
     return jsonify({"text": res_msg})
 
