@@ -138,7 +138,7 @@ def train():
 def predict(sentence):
     model.ckpt.restore(model.ckpt_manager.latest_checkpoint)
 
-    sentence = data_util.tok(sentence)
+    sentence = " ".join(data_util.tok(sentence))
 
     input_tokenizer = tokenize(INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(TARGET_VOCAB_PATH)
