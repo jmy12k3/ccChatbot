@@ -21,7 +21,7 @@ TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 
 # Simplified version of sklearn.model_selection.train_test_split()
-# Shuffle should not be used if the model will restore from checkpoint to train in the future,
+# Shuffle should not be used if the model will restore from checkpoint to continue training in the future,
 # as we do not know the previous distribution of train_dataset and test_dataset.
 def train_test_split(dataset, test_size=0.2, shuffle=True):
     if shuffle:
