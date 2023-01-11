@@ -21,7 +21,9 @@ TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 
 # Simplified version of sklearn.model_selection.train_test_split()
-def train_test_split(dataset, test_size=0.2, shuffle=False):
+# Shuffle should not be used if the model will restore from checkpoint to train in the future,
+# as we do not know the previous distribution of train_dataset and test_dataset.
+def train_test_split(dataset, test_size=0.2, shuffle=True):
     if shuffle:
         np.random.shuffle(dataset)
     idx = int(len(dataset) * (1 - test_size))
@@ -38,7 +40,7 @@ def tokenize(vocab_file):
 
 
 def read_data(path):
-    # Dataset Map (Substitute to tf.data.dataset.map())
+    # Dataset Map (Substitute to tf.data.dataset.map() as tensorflow-macos restriction)
     lines = io.open(path, encoding="utf-8").readlines()
     pairs = [[data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines]
 
@@ -56,7 +58,8 @@ def read_data(path):
     test_input_tensor = input_tokenizer.texts_to_sequences(test_input)
     test_target_tensor = target_tokenizer.texts_to_sequences(test_target)
 
-    # Dataset Filter (Substitute to tf.data.dataset.filter())
+    # Dataset Filter (Substitute to tf.data.dataset.filter() as tensorflow-macos restriction)
+    # multiprocessing.Pool could not be used as tensorflow-metal restriction
     print("Filtering dataset...")
 
     assert len(train_input_tensor) == len(train_target_tensor)
@@ -76,7 +79,7 @@ def read_data(path):
             test_input_tensor.remove(test_input_tensor[i])
             test_target_tensor.remove(test_target_tensor[i])
 
-    # Pad
+    # Padding
     train_input_tensor = tf.keras.preprocessing.sequence.pad_sequences(
         train_input_tensor, maxlen=MAX_LENGTH
     )
@@ -162,6 +165,7 @@ def predict(sentence):
             encoder_input, output
         )
 
+        # attention_weights
         predictions, _ = model.transformer(
             encoder_input,
             output,
@@ -193,6 +197,7 @@ if __name__ == "__main__":
     writer = tf.summary.create_file_writer(LOG_DIR)
 
     SEQ_DATA = gConfig["seq_data"]
+    # input_tokenizer, target_tokenizer
     (
         train_input_tensor,
         train_target_tensor,
