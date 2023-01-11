@@ -21,7 +21,7 @@ TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 
 def train_test_split(dataset, test_size=0.2):
-    np.random.shuffle(dataset)
+    # np.random.shuffle(dataset)
     idx = int(len(dataset) * (1 - test_size))
     train_dataset = dataset[:idx]
     test_dataset = dataset[idx:]
@@ -108,7 +108,7 @@ def train():
         model.accuracy.reset_state()
 
         for (batch, (inp, tar)) in enumerate(
-            tqdm(train_dataset, ascii=" >=", desc=f"Epoch {epoch}")
+            tqdm(train_dataset, ascii=" >=", desc=f"Epoch {epoch + 1}")
         ):
             model.train_step(inp, tar)
 
