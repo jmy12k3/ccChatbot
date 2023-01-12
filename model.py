@@ -38,7 +38,6 @@ def positional_encoding(position, d_model):
 
 
 def scaled_dot_product_attention(q, k, v, mask):
-
     matmul_qk = tf.matmul(q, k, transpose_b=True)
 
     dk = tf.cast(tf.shape(k)[-1], tf.float32)
@@ -121,7 +120,6 @@ class EncoderLayer(tf.keras.layers.Layer):
         self.dropout2 = tf.keras.layers.Dropout(rate)
 
     def call(self, x, training, mask):
-
         attn_output, _ = self.mha(x, x, x, mask)
         attn_output = self.dropout1(attn_output, training=training)
         out1 = self.layernorm1(x + attn_output)
@@ -151,7 +149,6 @@ class DecoderLayer(tf.keras.layers.Layer):
         self.dropout3 = tf.keras.layers.Dropout(rate)
 
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-
         attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)
         attn1 = self.dropout1(attn1, training=training)
         out1 = self.layernorm1(attn1 + x)
@@ -195,7 +192,6 @@ class Encoder(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def call(self, x, training, mask):
-
         seq_len = tf.shape(x)[1]
 
         x = self.embedding(x)
@@ -235,7 +231,6 @@ class Decoder(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-
         seq_len = tf.shape(x)[1]
         attention_weights = {}
 
@@ -284,7 +279,6 @@ class Transformer(tf.keras.Model):
     def call(
         self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask
     ):
-
         enc_output = self.encoder(inp, training, enc_padding_mask)
 
         dec_output, attention_weights = self.decoder(
