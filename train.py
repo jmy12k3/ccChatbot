@@ -51,7 +51,7 @@ def read_data(path):
     train_input, train_target = zip(*train_pairs)
     test_input, test_target = zip(*test_pairs)
 
-    # Encode
+    # Dataset Encode (Substitute to tf.keras.layers.TextVectorization() as the restriction of tensorflow-macos)
     input_tokenizer = tokenize(INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(TARGET_VOCAB_PATH)
 
@@ -61,7 +61,6 @@ def read_data(path):
     test_target_tensor = target_tokenizer.texts_to_sequences(test_target)
 
     # Dataset Filter (Substitute to tf.data.dataset.filter() as the restriction of tensorflow-macos)
-    # multiprocessing could not be used as the restriction of tensorflow-metal
     print("Filtering dataset...")
 
     assert len(train_input_tensor) == len(train_target_tensor)

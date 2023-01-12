@@ -13,8 +13,8 @@ NUM_LAYERS = gConfig["num_layers"]
 D_MODEL = gConfig["d_model"]
 NUM_HEADS = gConfig["num_heads"]
 DFF = gConfig["dff"]
-INPUT_VOCAB_SIZE = gConfig["input_vocab_size"] + 2
-TARGET_VOCAB_SIZE = gConfig["target_vocab_size"] + 2
+INPUT_VOCAB_SIZE = gConfig["input_vocab_size"]
+TARGET_VOCAB_SIZE = gConfig["target_vocab_size"]
 DROPOUT_RATE = gConfig["dropout_rate"]
 
 
