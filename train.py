@@ -21,9 +21,11 @@ TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 
 
 # Simplified version of sklearn.model_selection.train_test_split()
-# Shuffle should not be used if the model will restore from checkpoint to continue training in the future,
-# as we do not know the previous distribution of train_dataset and test_dataset.
-def train_test_split(dataset, test_size=0.2, shuffle=True):
+# Shuffle should not be used under 2 cases:
+# 1. The data is continuous
+# 2. Model will be trained from checkpoint in the future, as we do not know the previous shuffled distirbution.
+#    This may lead to the model learning from the test set, resulting to a biased test accuracy.
+def train_test_split(dataset, test_size=0.2, shuffle=False):
     if shuffle:
         np.random.shuffle(dataset)
     idx = int(len(dataset) * (1 - test_size))
@@ -59,7 +61,7 @@ def read_data(path):
     test_target_tensor = target_tokenizer.texts_to_sequences(test_target)
 
     # Dataset Filter (Substitute to tf.data.dataset.filter() as the restriction of tensorflow-macos)
-    # multiprocessing.Pool and asyncio could not be used as the restriction of tensorflow-metal
+    # multiprocessing could not be used as the restriction of tensorflow-metal
     print("Filtering dataset...")
 
     assert len(train_input_tensor) == len(train_target_tensor)
