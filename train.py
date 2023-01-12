@@ -155,6 +155,8 @@ def predict(sentence):
     encoder_input = tf.keras.preprocessing.sequence.pad_sequences(
         encoder_input, maxlen=MAX_LENGTH
     )
+    encoder_input = tf.convert_to_tensor(encoder_input)
+
     decoder_input = [target_tokenizer.word_index[data_util.SOS]]
     output = tf.expand_dims(decoder_input, 0)
 
@@ -176,16 +178,14 @@ def predict(sentence):
             dec_padding_mask,
         )
 
-        predictions = predictions[:, -1:, :]
-
-        predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+        predicted_id = tf.argmax(predictions[0]).numpy()
 
         if predicted_id == target_tokenizer.word_index[data_util.EOS]:
             break
 
-        result += str(index_word[int(predicted_id)]) + " "
+        result += str(index_word[predicted_id]) + " "
 
-        output = tf.concat([output, predicted_id], axis=-1)
+        output = tf.expand_dims([predicted_id], 0)
 
     return result
 
