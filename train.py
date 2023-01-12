@@ -23,8 +23,8 @@ TARGET_VOCAB_PATH = gConfig["target_vocab_path"]
 # Simplified version of sklearn.model_selection.train_test_split()
 # Shuffle should not be used under 2 cases:
 # 1. The data is continuous
-# 2. Model will be trained from checkpoint in the future, as we do not know the previous shuffled distirbution.
-#    This may lead to the model learning from the test set, resulting to a biased test accuracy.
+# 2. The model will be trained from checkpoint in the future.
+#    As we do not know the previous shuffled distirbution, this may lead to the model learning from the test set.
 def train_test_split(dataset, test_size=0.2, shuffle=False):
     if shuffle:
         np.random.shuffle(dataset)
