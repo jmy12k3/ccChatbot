@@ -37,23 +37,6 @@ def positional_encoding(position, d_model):
     return tf.cast(pos_encoding, dtype=tf.float32)
 
 
-def scaled_dot_product_attention(q, k, v, mask):
-
-    matmul_qk = tf.matmul(q, k, transpose_b=True)
-
-    dk = tf.cast(tf.shape(k)[-1], tf.float32)
-    scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
-
-    if mask is not None:
-        scaled_attention_logits += mask * -1e9
-
-    attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)
-
-    output = tf.matmul(attention_weights, v)
-
-    return output, attention_weights
-
-
 def point_wise_feed_forward_network(d_model, dff):
     return tf.keras.Sequential(
         [
@@ -63,55 +46,13 @@ def point_wise_feed_forward_network(d_model, dff):
     )
 
 
-class MultiHeadAttention(tf.keras.layers.Layer):
-    def __init__(self, d_model, num_heads):
-        super(MultiHeadAttention, self).__init__()
-        self.num_heads = num_heads
-        self.d_model = d_model
-
-        assert d_model % self.num_heads == 0
-
-        self.depth = d_model // self.num_heads
-
-        self.wq = tf.keras.layers.Dense(d_model)
-        self.wk = tf.keras.layers.Dense(d_model)
-        self.wv = tf.keras.layers.Dense(d_model)
-
-        self.dense = tf.keras.layers.Dense(d_model)
-
-    def split_heads(self, x, batch_size):
-        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
-        return tf.transpose(x, perm=[0, 2, 1, 3])
-
-    def call(self, v, k, q, mask):
-        batch_size = tf.shape(q)[0]
-
-        q = self.wq(q)
-        k = self.wk(k)
-        v = self.wv(v)
-
-        q = self.split_heads(q, batch_size)
-        k = self.split_heads(k, batch_size)
-        v = self.split_heads(v, batch_size)
-
-        scaled_attention, attention_weights = scaled_dot_product_attention(
-            q, k, v, mask
-        )
-
-        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])
-
-        concat_attention = tf.reshape(scaled_attention, (batch_size, -1, self.d_model))
-
-        output = self.dense(concat_attention)
-
-        return output, attention_weights
-
-
 class EncoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1):
         super(EncoderLayer, self).__init__()
 
-        self.mha = MultiHeadAttention(d_model, num_heads)
+        self.mha = tf.keras.layers.MultiHeadAttention(
+            key_dim=d_model, num_heads=num_heads
+        )
         self.ffn = point_wise_feed_forward_network(d_model, dff)
 
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -137,8 +78,12 @@ class DecoderLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, num_heads, dff, rate=0.1):
         super(DecoderLayer, self).__init__()
 
-        self.mha1 = MultiHeadAttention(d_model, num_heads)
-        self.mha2 = MultiHeadAttention(d_model, num_heads)
+        self.mha1 = tf.keras.layers.MultiHeadAttention(
+            key_dim=d_model, num_heads=num_heads
+        )
+        self.mha2 = tf.keras.layers.MultiHeadAttention(
+            key_dim=d_model, num_heads=num_heads
+        )
 
         self.ffn = point_wise_feed_forward_network(d_model, dff)
 
@@ -328,7 +273,9 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 learning_rate = CustomSchedule(D_MODEL)
-optimizer = tf.keras.optimizers.Adam(learning_rate, beta_2=0.98, epsilon=1e-9)
+optimizer = tf.keras.optimizers.Adam(
+    learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9
+)
 
 transformer = Transformer(
     NUM_LAYERS,
