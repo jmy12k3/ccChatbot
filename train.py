@@ -42,7 +42,7 @@ def tokenize(vocab_file):
 
 
 def read_data(path):
-    # Dataset Map (Substitute to tf.data.dataset.map() as the restriction of tensorflow-macos)
+    # Dataset Map (Substitute to tf.data.dataset.map() as the restriction of tensorflow-metal)
     lines = io.open(path, encoding="utf-8").readlines()
     pairs = [[data_util.preprocess_sentence(w) for w in l.split("\t")] for l in lines]
 
@@ -51,7 +51,7 @@ def read_data(path):
     train_input, train_target = zip(*train_pairs)
     test_input, test_target = zip(*test_pairs)
 
-    # Dataset Encode (Substitute to tf.keras.layers.TextVectorization() as the restriction of tensorflow-macos)
+    # Dataset Encode (Substitute to tf.keras.layers.TextVectorization() as the restriction of tensorflow-metal)
     input_tokenizer = tokenize(INPUT_VOCAB_PATH)
     target_tokenizer = tokenize(TARGET_VOCAB_PATH)
 
@@ -60,7 +60,7 @@ def read_data(path):
     test_input_tensor = input_tokenizer.texts_to_sequences(test_input)
     test_target_tensor = target_tokenizer.texts_to_sequences(test_target)
 
-    # Dataset Filter (Substitute to tf.data.dataset.filter() as the restriction of tensorflow-macos)
+    # Dataset Filter (Substitute to tf.data.dataset.filter() as the restriction of tensorflow-metal)
     print("Filtering dataset...")
 
     assert len(train_input_tensor) == len(train_target_tensor)
