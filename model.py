@@ -338,7 +338,7 @@ transformer = Transformer(
     rate=DROPOUT_RATE,
 )
 
-CHECKPOINT_DIR = gConfig["model_data"]
+CHECKPOINT_DIR = gConfig["checkpoint_dir"]
 ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
 ckpt_manager = tf.train.CheckpointManager(ckpt, CHECKPOINT_DIR, max_to_keep=2)
 
