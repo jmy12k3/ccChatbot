@@ -196,7 +196,7 @@ if __name__ == "__main__":
     BATCH_SIZE = gConfig["batch_size"]
     EPOCH = gConfig["epoch"]
 
-    LOG_DIR = gConfig["log"]
+    LOG_DIR = gConfig["log_dir"]
     writer = tf.summary.create_file_writer(LOG_DIR)
 
     # input_tokenizer, target_tokenizer
