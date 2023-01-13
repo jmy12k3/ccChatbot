@@ -196,11 +196,11 @@ if __name__ == "__main__":
     BATCH_SIZE = gConfig["batch_size"]
     EPOCH = gConfig["epoch"]
 
-    LOG_DIR = gConfig["log_dir"]
+    LOG_DIR = gConfig["log"]
     writer = tf.summary.create_file_writer(LOG_DIR)
 
-    SEQ_DATA = gConfig["seq_data"]
     # input_tokenizer, target_tokenizer
+    SEQ_DATA = gConfig["seq_data"]
     (
         train_input_tensor,
         train_target_tensor,
