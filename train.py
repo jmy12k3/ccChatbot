@@ -178,14 +178,16 @@ def predict(sentence):
             dec_padding_mask,
         )
 
-        predicted_id = tf.argmax(predictions[0]).numpy()
+        predictions = predictions[:, -1:, :]
+
+        predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
 
         if predicted_id == target_tokenizer.word_index[data_util.EOS]:
             break
 
-        result += str(index_word[predicted_id]) + " "
+        result += str(index_word[int(predicted_id)]) + " "
 
-        output = tf.expand_dims([predicted_id], 0)
+        output = tf.concat([output, predicted_id], axis=-1)
 
     return result
 
