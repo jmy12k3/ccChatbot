@@ -1,12 +1,10 @@
 # ccChatbot
+
 A chatbot which could be trained with custom corpus.
 
+Roadmap:
 
-
-Test version Roadmap:
-
-1. Use TextVectorization layer
-3. Add cross validation
+1. Filter text instead of clamp
 
 #### Reference:
 
