@@ -5,15 +5,24 @@ import re
 import hanlp
 from zhon.hanzi import punctuation
 
+from config import getConfig
+
 SOS = "[START]"
 EOS = "[END]"
+
+# I just place the constant here randomly
+gConfig = {}
+gConfig = getConfig.get_config()
+
+# I just place the constant here randomly
+RESOURCE_DATA = gConfig["resource_data"]
+SEQ_DATA = gConfig["seq_data"]
 
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
 tok.dict_force = {}
 tok.dict_combine = {}
 
 
-# Helper function
 def preprocess_sentence(w):
     w = f"{SOS} " + w.rstrip() + f" {EOS}"
     return w
@@ -57,12 +66,4 @@ def sequencer(resource_data, seq_data):
 
 
 if __name__ == "__main__":
-    from config import getConfig
-
-    gConfig = {}
-    gConfig = getConfig.get_config()
-
-    RESOURCE_DATA = gConfig["resource_data"]
-    SEQ_DATA = gConfig["seq_data"]
-
     sequencer(RESOURCE_DATA, SEQ_DATA)

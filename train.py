@@ -9,8 +9,13 @@ import model
 
 from config import getConfig
 
+# I just place the constant here randomly
 gConfig = {}
 gConfig = getConfig.get_config()
+
+# I just place the constant here randomly
+BATCH_SIZE = gConfig["batch_size"]
+EPOCH = gConfig["epoch"]
 
 
 # Simplified implementation of sklearn.model_selection.train_test_split
@@ -98,15 +103,14 @@ def train():
         train_batches,
         epochs=EPOCH,
         validation_data=val_batches,
-        callbacks=[model.tensorboard],
+        callbacks=[model.tensorboard_callback],
     )
 
 
 if __name__ == "__main__":
-    BATCH_SIZE = gConfig["batch_size"]
-    EPOCH = gConfig["epoch"]
-    
+    # I just place the constant here randomly
     SEQ_DATA = gConfig["seq_data"]
+
     (
         train_inputs,
         train_targets,
