@@ -322,7 +322,7 @@ inputs_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=Non
 targets_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=None)
 
 
-# Instantiate
+# Instantiation
 def delayed_initialize():
     assert (
         inputs_tokenizer.vocabulary_size() and targets_tokenizer.vocabulary_size() > 2
