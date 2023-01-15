@@ -131,4 +131,5 @@ dmypy.json
 # Custom
 .DS_STORE
 .icloud
+.vscode/
 __pycache__/

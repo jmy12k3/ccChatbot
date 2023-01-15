@@ -1,12 +1,11 @@
 # coding=utf-8
 import os
-import sys
 import time
 import threading
 
 from flask import Flask, render_template, request, jsonify
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import train
 

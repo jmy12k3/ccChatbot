@@ -79,7 +79,7 @@ def make_batches(ds):
 def train():
     transformer = model.delayed_initialize()
 
-    # Custom subclass model is very hard to save checkpoint with optimizer
+    # Custom subclass model is very hard to save checkpoint with optimizer state
     # A easier way is to load weights to continue training, but the optimizer state will be lost
     # ...
 
