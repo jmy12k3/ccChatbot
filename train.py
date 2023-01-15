@@ -18,7 +18,7 @@ EPOCHS = gConfig["epoch"]
 # endregion
 
 
-# shuffle=False if load from checkpoint to train
+# shuffle=False if model will be loaded from checkpoint to train
 def train_val_split(ds, val_size=0.2, shuffle=True):
     if shuffle:
         np.random.shuffle(ds)
@@ -77,7 +77,7 @@ def make_batches(ds):
 
 
 def train():
-    transformer = model.delayed_initialize()
+    transformer = model.instantiate()
 
     # Custom subclass model is very hard to save checkpoint with optimizer state
     # A easier way is to load weights to continue training, but the optimizer state will be lost

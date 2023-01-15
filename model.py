@@ -16,7 +16,7 @@ MAX_LENGTH = gConfig["max_length"]
 VOCAB_SIZE = gConfig["vocab_size"]
 DROPOUT_RATE = gConfig["dropout_rate"]
 
-# Constants
+# Callbacks parameters
 LOG_DIR = gConfig["log_dir"]
 MODEL = gConfig["model_dir"]
 
@@ -322,8 +322,8 @@ inputs_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=Non
 targets_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=None)
 
 
-# Instantiation
-def delayed_initialize():
+# Model instantiation
+def instantiate():
     assert (
         inputs_tokenizer.vocabulary_size() and targets_tokenizer.vocabulary_size() > 2
     )
