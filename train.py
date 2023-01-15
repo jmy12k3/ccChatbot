@@ -56,11 +56,9 @@ def read_data(path):
 
 def prepare_batch(inputs, targets):
     inputs = model.inputs_tokenizer(inputs)
-    # Clamp the maximum length of input
     inputs = inputs[:, : model.MAX_LENGTH]
 
     targets = model.targets_tokenizer(targets)
-    # Clamp the maximum length of target, including start and end token
     targets = targets[:, : (model.MAX_LENGTH + 2)]
     targets_inputs = targets[:, :-1]
     targets_labels = targets[:, 1:]
@@ -72,7 +70,7 @@ def make_batches(ds):
     return (
         ds.cache()
         .shuffle(BUFFER_SIZE)
-        .batch(BATCH_SIZE)
+        .batch(BATCH_SIZE, True)
         .map(prepare_batch, tf.data.AUTOTUNE)
         .prefetch(tf.data.AUTOTUNE)
     )
