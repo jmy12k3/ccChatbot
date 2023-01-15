@@ -56,10 +56,12 @@ def read_data(path):
 
 def prepare_batch(inputs, targets):
     inputs = model.inputs_tokenizer(inputs)
+    # Clamp the maximum length of input
     inputs = inputs[:, : model.MAX_LENGTH]
 
     targets = model.targets_tokenizer(targets)
-    targets = targets[:, : (model.MAX_LENGTH + 1)]
+    # Clamp the maximum length of target, including start and end token
+    targets = targets[:, : (model.MAX_LENGTH + 2)]
     targets_inputs = targets[:, :-1]
     targets_labels = targets[:, 1:]
 
