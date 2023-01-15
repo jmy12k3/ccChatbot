@@ -7,6 +7,7 @@ from config import getConfig
 gConfig = {}
 gConfig = getConfig.get_config()
 
+# Hyperparameters
 NUM_LAYERS = gConfig["num_layers"]
 D_MODEL = gConfig["d_model"]
 NUM_HEADS = gConfig["num_heads"]
@@ -15,7 +16,12 @@ MAX_LENGTH = gConfig["max_length"]
 VOCAB_SIZE = gConfig["vocab_size"]
 DROPOUT_RATE = gConfig["dropout_rate"]
 
+# Constants
+LOG_DIR = gConfig["log_dir"]
+MODEL = gConfig["model_dir"]
 
+
+# Model
 def positional_encoding(length, depth):
     depth = depth / 2
 
@@ -258,6 +264,7 @@ class Transformer(tf.keras.Model):
         return logits
 
 
+# Optimizer
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
         super().__init__()
@@ -281,6 +288,7 @@ optimizer = tf.keras.optimizers.Adam(
 )
 
 
+# Metrics
 def masked_loss(label, pred):
     mask = label != 0
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
@@ -309,11 +317,17 @@ def masked_accuracy(label, pred):
     return tf.reduce_sum(match) / tf.reduce_sum(mask)
 
 
+# Tokenizers
 inputs_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=None)
 targets_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=None)
 
 
+# Instantiate
 def delayed_initialize():
+    assert (
+        inputs_tokenizer.vocabulary_size() and targets_tokenizer.vocabulary_size() > 2
+    )
+
     transformer = Transformer(
         num_layers=NUM_LAYERS,
         d_model=D_MODEL,
@@ -324,17 +338,25 @@ def delayed_initialize():
         dropout_rate=DROPOUT_RATE,
     )
 
-    CHECKPOINT_DIR = gConfig["checkpoint_dir"]
-    ckpt = tf.train.Checkpoint(transformer=transformer, optimizer=optimizer)
-    ckpt_manager = tf.train.CheckpointManager(ckpt, CHECKPOINT_DIR, max_to_keep=2)
+    transformer.compile(
+        loss=masked_loss,
+        optimizer=optimizer,
+        metrics=[masked_accuracy],
+    )
 
-    return transformer, ckpt, ckpt_manager
+    return transformer
 
 
-LOG_DIR = gConfig["log_dir"]
+# Callbacks
+model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+    filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODEL,
+    save_best_only=True,
+    save_weights_only=True,
+)
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR)
+callbacks = [model_checkpoint_callback, tensorboard_callback]
 
-# UNFINISHED AND UNEDITED
+
 """
 class Translator(tf.Module):
     def __init__(self, tokenizers, transformer):

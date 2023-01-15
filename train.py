@@ -1,6 +1,4 @@
 # coding=utf-8
-import io
-
 import numpy as np
 import tensorflow as tf
 
@@ -9,20 +7,19 @@ import model
 
 from config import getConfig
 
-# I just place the constant here randomly
+# region CONSTANTS
 gConfig = {}
 gConfig = getConfig.get_config()
 
-# I just place the constant here randomly
+SEQ_DATA = gConfig["seq_path"]
+
 BATCH_SIZE = gConfig["batch_size"]
-EPOCH = gConfig["epoch"]
+EPOCHS = gConfig["epoch"]
+# endregion
 
 
-# Simplified implementation of sklearn.model_selection.train_test_split
-# Shuffle should only be True if:
-# - The dataset is not continuous
-# - The training will NOT be continued from a checkpoint in the future
-def train_val_split(ds, val_size=0.2, shuffle=False):
+# shuffle=False if load from checkpoint to train
+def train_val_split(ds, val_size=0.2, shuffle=True):
     if shuffle:
         np.random.shuffle(ds)
     idx = int(len(ds) * (1 - val_size))
@@ -32,7 +29,7 @@ def train_val_split(ds, val_size=0.2, shuffle=False):
 
 
 def read_data(path):
-    lines = io.open(path, encoding="utf-8").readlines()
+    lines = open(path, encoding="utf-8").readlines()
     pairs = [
         [
             w if i % 2 == 0 else data_util.preprocess_sentence(w)
@@ -57,7 +54,6 @@ def read_data(path):
     )
 
 
-# Reference: https://www.tensorflow.org/text/tutorials/transformer#set_up_a_data_pipeline_with_tfdata
 def prepare_batch(inputs, targets):
     inputs = model.inputs_tokenizer(inputs)
     inputs = inputs[:, : model.MAX_LENGTH]
@@ -70,7 +66,6 @@ def prepare_batch(inputs, targets):
     return (inputs, targets_inputs), targets_labels
 
 
-# Reference: https://www.tensorflow.org/text/tutorials/transformer#set_up_a_data_pipeline_with_tfdata
 def make_batches(ds):
     return (
         ds.cache()
@@ -81,36 +76,26 @@ def make_batches(ds):
     )
 
 
-# Reference: https://www.tensorflow.org/text/tutorials/transformer#train_the_model
 def train():
-    transformer, ckpt, ckpt_manager = model.delayed_initialize()
+    transformer = model.delayed_initialize()
 
-    if ckpt_manager.latest_checkpoint:
-        ckpt.restore(ckpt_manager.latest_checkpoint)
-        print("Latest checkpoint restored!")
+    # Custom subclass model is very hard to save checkpoint with optimizer
+    # A easier way is to load weights to continue training, but the optimizer state will be lost
+    # ...
 
     for (inputs, targets_inputs), _ in train_batches.take(1):
         transformer((inputs, targets_inputs))
     transformer.summary()
 
-    transformer.compile(
-        loss=model.masked_loss,
-        optimizer=model.optimizer,
-        metrics=[model.masked_accuracy],
-    )
-
     transformer.fit(
         train_batches,
-        epochs=EPOCH,
+        epochs=EPOCHS,
         validation_data=val_batches,
-        callbacks=[model.tensorboard_callback],
+        callbacks=model.callbacks,
     )
 
 
 if __name__ == "__main__":
-    # I just place the constant here randomly
-    SEQ_DATA = gConfig["seq_data"]
-
     (
         train_inputs,
         train_targets,

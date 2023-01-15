@@ -10,13 +10,13 @@ from config import getConfig
 SOS = "[START]"
 EOS = "[END]"
 
-# I just place the constant here randomly
+# region CONSTANTS
 gConfig = {}
 gConfig = getConfig.get_config()
 
-# I just place the constant here randomly
-RESOURCE_DATA = gConfig["resource_data"]
-SEQ_DATA = gConfig["seq_data"]
+RESOURCE = gConfig["resource_path"]
+SEQ_DATA = gConfig["seq_path"]
+# endregion
 
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
 tok.dict_force = {}
@@ -28,21 +28,25 @@ def preprocess_sentence(w):
     return w
 
 
-def sequencer(resource_data, seq_data):
-    if not os.path.exists(resource_data):
+def sequencer(resource, seq_data):
+    if not os.path.exists(resource):
         print(f"Could not find Corpus. Make sure that it is located at {seq_data}")
         exit()
 
     seq = open(seq_data, "w")
-    with open(resource_data, encoding="utf-8") as f:
+    with open(resource, encoding="utf-8") as f:
         one_conv = ""
         i = 0
         for line in f:
             line = line.strip("\n")
-            # _filterDict = {"": ""}
-            # filterDict = dict((re.escape(k), v) for k, v in _filterDict.items())
-            # pattern = re.compile("|".join(filterDict.keys()))
-            # line = pattern.sub(lambda x: filterDict[re.escape(x.group(0))], line)
+
+            """
+            _filterDict = {"": ""}
+            filterDict = dict((re.escape(k), v) for k, v in _filterDict.items())
+            pattern = re.compile("|".join(filterDict.keys()))
+            line = pattern.sub(lambda x: filterDict[re.escape(x.group(0))], line)
+            """
+
             if line == "":
                 continue
             if line[0] == "E":
@@ -66,4 +70,4 @@ def sequencer(resource_data, seq_data):
 
 
 if __name__ == "__main__":
-    sequencer(RESOURCE_DATA, SEQ_DATA)
+    sequencer(RESOURCE, SEQ_DATA)
