@@ -341,6 +341,7 @@ def instantiate():
 
 
 class Translator(tf.Module):
+    # EDITED
     def __init__(
         self,
         transformer,
@@ -353,13 +354,20 @@ class Translator(tf.Module):
 
     def __call__(self, sentence, max_length=MAX_LENGTH):
         assert isinstance(sentence, tf.Tensor)
+        # COMMENTED
+        # if len(sentence.shape) == 0:
+        #    sentence = sentence[tf.newaxis]
 
+        # EDITED
         sentence = self.inputs_tokenizer([sentence]).to_tensor()
 
         encoder_input = sentence
 
+        # EDITED
         start_end = self.targets_tokenizer.get_vocabulary()
+        # EDITED
         start = tf.cast(tf.expand_dims(start_end.index(data_util.SOS), 0), tf.int64)
+        # EDITED
         end = tf.cast(tf.expand_dims(start_end.index(data_util.EOS), 0), tf.int64)
 
         output_array = tf.TensorArray(dtype=tf.int64, size=0, dynamic_size=True)
@@ -376,11 +384,13 @@ class Translator(tf.Module):
             if predicted_id == end:
                 break
 
+            # DISPLACED WITH BREAK
             output_array = output_array.write(i + 1, predicted_id[0])
 
+        # EDITED
         output = tf.transpose(output_array.stack())[:, 1:]
 
-        # UNFINISHED: DECODE OUTPUT
+        # UNFINISHED: DETOKENIZE OUTPUT
         # ...
 
         self.transformer([encoder_input, output[:, :-1]], training=False)
