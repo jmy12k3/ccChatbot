@@ -1,4 +1,6 @@
 # coding=utf-8
+import glob
+
 import numpy as np
 import tensorflow as tf
 
@@ -63,11 +65,12 @@ def read_data(path):
 def prepare_batch(inputs, targets):
     inputs = model.inputs_tokenizer(inputs)
     inputs = inputs[:, : model.MAX_LENGTH]
+    inputs = inputs.to_tensor()
 
     targets = model.targets_tokenizer(targets)
     targets = targets[:, : (model.MAX_LENGTH + 2)]
-    targets_inputs = targets[:, :-1]
-    targets_labels = targets[:, 1:]
+    targets_inputs = targets[:, :-1].to_tensor()
+    targets_labels = targets[:, 1:].to_tensor()
 
     return (inputs, targets_inputs), targets_labels
 
@@ -76,23 +79,13 @@ def make_batches(ds):
     return (
         ds.cache()
         .shuffle(BUFFER_SIZE)
-        .batch(BATCH_SIZE, True)
+        .batch(BATCH_SIZE)
         .map(prepare_batch, tf.data.AUTOTUNE)
         .prefetch(tf.data.AUTOTUNE)
     )
 
 
 def train():
-    transformer = model.instantiate()
-
-    # Custom subclass model is very hard to save checkpoint with optimizer state
-    # A easier way is to save and load weights to continue training, but the optimizer state will be lost
-    # ...
-
-    for (inputs, targets_inputs), _ in train_batches.take(1):
-        transformer((inputs, targets_inputs))
-    transformer.summary()
-
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODEL_DIR,
         save_best_only=True,
@@ -108,6 +101,19 @@ def train():
     )
 
 
+# Test version: not for serve purpose!
+# Internal use only in-file
+def predict(sentence):
+    sentence = " ".join(data_util.tok(sentence))
+    sentence = tf.constant(sentence)
+
+    translator = model.Translator(transformer)
+
+    result = translator(sentence)
+
+    return result
+
+
 if __name__ == "__main__":
     train_inputs, train_targets, val_inputs, val_targets = read_data(SEQ_PATH)
 
@@ -120,5 +126,14 @@ if __name__ == "__main__":
 
     train_batches = make_batches(train_ds)
     val_batches = make_batches(val_ds)
+    
+    transformer = model.instantiate()
+    for (inputs, targets_inputs), _ in train_batches.take(1):
+        transformer((inputs, targets_inputs))
+    transformer.summary()
+
+    weights = glob.glob(f"{MODEL_DIR}/*.h5")[-1]
+    if weights:
+        transformer.load_weights(f"{MODEL_DIR}/" + weights)
 
     train()
