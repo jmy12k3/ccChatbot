@@ -100,6 +100,7 @@ def train():
     )
 
 
+# Experimental function
 """
 def predict(sentence):
     sentence = " ".join(data_util.tok(sentence))
@@ -107,7 +108,7 @@ def predict(sentence):
 
     translator = model.Translator(transformer)
 
-    result = translator(sentence)
+    result, _ = translator(sentence)
 
     return result
 """
