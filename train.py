@@ -101,8 +101,8 @@ def train():
     )
 
 
-# Test version: not for serve purpose!
-# Internal use only in-file
+# TEST VERSION: NOT FOR SERVE!
+# NOT COMPATIBLE WITH APP.PY YET
 def predict(sentence):
     sentence = " ".join(data_util.tok(sentence))
     sentence = tf.constant(sentence)
@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
     train_batches = make_batches(train_ds)
     val_batches = make_batches(val_ds)
-    
+
     transformer = model.instantiate()
     for (inputs, targets_inputs), _ in train_batches.take(1):
         transformer((inputs, targets_inputs))
