@@ -26,7 +26,6 @@ MODEL_DIR = gConfig["model_dir"]
 # endregion
 
 
-# shuffle=False if model will be loaded from checkpoint to train
 def train_val_split(ds, val_size=0.2, shuffle=False):
     if shuffle:
         np.random.shuffle(ds)
@@ -101,8 +100,7 @@ def train():
     )
 
 
-# TEST VERSION: NOT FOR SERVE!
-# NOT COMPATIBLE WITH APP.PY YET
+"""
 def predict(sentence):
     sentence = " ".join(data_util.tok(sentence))
     sentence = tf.constant(sentence)
@@ -112,6 +110,7 @@ def predict(sentence):
     result = translator(sentence)
 
     return result
+"""
 
 
 if __name__ == "__main__":
