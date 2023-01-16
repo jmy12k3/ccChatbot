@@ -132,8 +132,8 @@ if __name__ == "__main__":
         transformer((inputs, targets_inputs))
     transformer.summary()
 
-    weights = glob.glob(f"{MODEL_DIR}/*.h5")[-1]
+    weights = glob.glob(f"{MODEL_DIR}/*.h5")
     if weights:
-        transformer.load_weights(f"{MODEL_DIR}/" + weights)
+        transformer.load_weights(f"{MODEL_DIR}/{weights[-1]}")
 
     train()
