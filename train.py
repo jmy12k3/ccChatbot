@@ -4,22 +4,28 @@ import tensorflow as tf
 
 import data_util
 import model
-
 from config import getConfig
 
 # region CONSTANTS
 gConfig = {}
 gConfig = getConfig.get_config()
 
-SEQ_DATA = gConfig["seq_path"]
+# Preprocessing related
+SEQ_PATH = gConfig["seq_path"]
 
+# Training related
 BATCH_SIZE = gConfig["batch_size"]
 EPOCHS = gConfig["epoch"]
+
+# Callbacks related
+LOG_DIR = gConfig["log_dir"]
+MODEL_DIR = gConfig["model_dir"]
+
 # endregion
 
 
 # shuffle=False if model will be loaded from checkpoint to train
-def train_val_split(ds, val_size=0.2, shuffle=True):
+def train_val_split(ds, val_size=0.2, shuffle=False):
     if shuffle:
         np.random.shuffle(ds)
     idx = int(len(ds) * (1 - val_size))
@@ -80,28 +86,30 @@ def train():
     transformer = model.instantiate()
 
     # Custom subclass model is very hard to save checkpoint with optimizer state
-    # A easier way is to load weights to continue training, but the optimizer state will be lost
+    # A easier way is to save and load weights to continue training, but the optimizer state will be lost
     # ...
 
     for (inputs, targets_inputs), _ in train_batches.take(1):
         transformer((inputs, targets_inputs))
     transformer.summary()
 
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODEL_DIR,
+        save_best_only=True,
+    )
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR)
+    callbacks = [model_checkpoint_callback, tensorboard_callback]
+
     transformer.fit(
         train_batches,
         epochs=EPOCHS,
         validation_data=val_batches,
-        callbacks=model.callbacks,
+        callbacks=callbacks,
     )
 
 
 if __name__ == "__main__":
-    (
-        train_inputs,
-        train_targets,
-        val_inputs,
-        val_targets,
-    ) = read_data(SEQ_DATA)
+    train_inputs, train_targets, val_inputs, val_targets = read_data(SEQ_PATH)
 
     train_ds = tf.data.Dataset.from_tensor_slices(
         (list(train_inputs), list(train_targets))

@@ -4,6 +4,7 @@ import tensorflow as tf
 
 from config import getConfig
 
+# region CONSTANTS
 gConfig = {}
 gConfig = getConfig.get_config()
 
@@ -15,13 +16,9 @@ DFF = gConfig["dff"]
 MAX_LENGTH = gConfig["max_length"]
 VOCAB_SIZE = gConfig["vocab_size"]
 DROPOUT_RATE = gConfig["dropout_rate"]
-
-# Callbacks parameters
-LOG_DIR = gConfig["log_dir"]
-MODEL = gConfig["model_dir"]
+# endregion
 
 
-# Model
 def positional_encoding(length, depth):
     depth = depth / 2
 
@@ -264,7 +261,6 @@ class Transformer(tf.keras.Model):
         return logits
 
 
-# Optimizer
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __init__(self, d_model, warmup_steps=4000):
         super().__init__()
@@ -288,7 +284,6 @@ optimizer = tf.keras.optimizers.Adam(
 )
 
 
-# Metrics
 def masked_loss(label, pred):
     mask = label != 0
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
@@ -317,12 +312,10 @@ def masked_accuracy(label, pred):
     return tf.reduce_sum(match) / tf.reduce_sum(mask)
 
 
-# Tokenizers
 inputs_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=None)
 targets_tokenizer = tf.keras.layers.TextVectorization(VOCAB_SIZE, standardize=None)
 
 
-# Model instantiation
 def instantiate():
     assert (
         inputs_tokenizer.vocabulary_size() and targets_tokenizer.vocabulary_size() > 2
@@ -345,16 +338,6 @@ def instantiate():
     )
 
     return transformer
-
-
-# Callbacks
-model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODEL,
-    save_best_only=True,
-    save_weights_only=True,
-)
-tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR)
-callbacks = [model_checkpoint_callback, tensorboard_callback]
 
 
 """

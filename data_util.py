@@ -14,8 +14,9 @@ EOS = "[END]"
 gConfig = {}
 gConfig = getConfig.get_config()
 
-RESOURCE = gConfig["resource_path"]
-SEQ_DATA = gConfig["seq_path"]
+# Preprocessing related
+RESOURCE_PATH = gConfig["resource_path"]
+SEQ_PATH = gConfig["seq_path"]
 # endregion
 
 tok = hanlp.load(hanlp.pretrained.tok.COARSE_ELECTRA_SMALL_ZH)
@@ -70,4 +71,4 @@ def sequencer(resource, seq_data):
 
 
 if __name__ == "__main__":
-    sequencer(RESOURCE, SEQ_DATA)
+    sequencer(RESOURCE_PATH, SEQ_PATH)
