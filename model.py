@@ -380,7 +380,7 @@ class Translator(tf.Module):
 
         output = tf.transpose(output_array.stack())[:, 1:]
 
-        # Decode array here
+        # UNFINISHED: DECODE OUTPUT
         # ...
 
         self.transformer([encoder_input, output[:, :-1]], training=False)
