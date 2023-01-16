@@ -319,7 +319,7 @@ targets_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=T
 def instantiate():
     assert (
         inputs_tokenizer.vocabulary_size() and targets_tokenizer.vocabulary_size() > 2
-    ), "Tokenizer not adapted."
+    ), "Tokenizer has not yet adapted to the data."
 
     transformer = Transformer(
         num_layers=NUM_LAYERS,

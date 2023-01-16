@@ -85,9 +85,19 @@ def make_batches(ds):
 
 
 def train():
+    transformer = model.instantiate()
+    for (inputs, targets_inputs), _ in train_batches.take(1):
+        transformer((inputs, targets_inputs))
+    transformer.summary()
+
+    weights = glob.glob(f"{MODEL_DIR}/*.h5")
+    if weights:
+        transformer.load_weights(f"{MODEL_DIR}/{weights[-1]}")
+    
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODEL_DIR,
         save_best_only=True,
+        save_weights_only=True,
     )
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR)
     callbacks = [model_checkpoint_callback, tensorboard_callback]
@@ -126,14 +136,5 @@ if __name__ == "__main__":
 
     train_batches = make_batches(train_ds)
     val_batches = make_batches(val_ds)
-
-    transformer = model.instantiate()
-    for (inputs, targets_inputs), _ in train_batches.take(1):
-        transformer((inputs, targets_inputs))
-    transformer.summary()
-
-    weights = glob.glob(f"{MODEL_DIR}/*.h5")
-    if weights:
-        transformer.load_weights(f"{MODEL_DIR}/{weights[-1]}")
 
     train()
