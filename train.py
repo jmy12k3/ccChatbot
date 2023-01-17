@@ -142,7 +142,9 @@ def train(train_batches, val_batches, transformer, optimizer):
 
 
 def main():
+    # Global variables are generally considered as a bad practice
     global inputs_tokenizer, targets_tokenizer
+
     inputs_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
     targets_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
 
