@@ -61,7 +61,7 @@ def prepare_dataset(tsv):
         )
 
     df = pandas.read_csv(tsv, sep="\t", header=None, on_bad_lines="warn")
-    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(
+    df.iloc[:, 1:] = df.iloc[:, 1:].applymap(
         (lambda x: f"{SOS} {str(x).rstrip()} {EOS}")
     )
     train_ds, val_ds = train_test_split(df, test_size=0.2, shuffle=False)
@@ -143,6 +143,7 @@ def train(train_batches, val_batches, transformer, optimizer):
 
 def main():
     # Global variables are generally considered as a bad practice
+    # but who cares, bruh?
     global inputs_tokenizer, targets_tokenizer
 
     inputs_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)

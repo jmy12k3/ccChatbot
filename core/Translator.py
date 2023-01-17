@@ -42,18 +42,19 @@ class Translator(tf.Module):
 
             predicted_id = tf.argmax(predictions, axis=-1)
 
+            output_array = output_array.write(i + 1, predicted_id[0])
+
             if predicted_id == end:
                 break
 
-            output_array = output_array.write(i + 1, predicted_id[0])
+        output = tf.transpose(output_array.stack())
 
-        output = tf.transpose(output_array.stack())[:, 1:]
+        vocab = self.targets_tokenizer.get_vocabulary()
+        index_lookup = dict(zip(range(len(vocab)), vocab))
 
-        # text = tokenizers.en.detokenize(output)[0]
-
-        # tokens = tokenizers.en.lookup(output)[0]
+        text = " ".join([index_lookup[i] for i in output.numpy().tolist()[0]])
 
         self.transformer([encoder_input, output[:, :-1]], training=False)
         attention_weights = self.transformer.decoder.last_attn_scores
 
-        return output, attention_weights
+        return text, attention_weights
