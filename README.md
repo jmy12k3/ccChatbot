@@ -14,13 +14,13 @@ A highly customizable chatbot which could be trained with custom corpus.
 
    
 
-### Technical Limitations:
+### Technical Limitations
 
 * [ ] Filter text by MAX_LENGTH instead of clamp
 * [ ] Save model with optimizer state instead of only weights
 
 
 
-## Reference:
+## Reference
 
 - https://github.com/zhaoyingjun/chatbot
