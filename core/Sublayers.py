@@ -1,7 +1,7 @@
 # coding=utf-8
 import tensorflow as tf
 
-from core.Modules import BaseAttention
+from core.Module import BaseAttention
 
 
 class CrossAttention(BaseAttention):
