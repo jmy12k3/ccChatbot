@@ -1,7 +1,7 @@
 # coding=utf-8
 import glob
 
-import pandas
+import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
@@ -60,10 +60,12 @@ def prepare_dataset(tsv):
             .prefetch(tf.data.AUTOTUNE)
         )
 
-    df = pandas.read_csv(tsv, sep="\t", header=None, on_bad_lines="warn")
-    df.iloc[:, 1:] = df.iloc[:, 1:].applymap(
+    df = pd.read_csv(tsv, sep="\t", header=None, on_bad_lines="warn")
+    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(
         (lambda x: f"{SOS} {str(x).rstrip()} {EOS}")
-    )
+    )  # or [:, 1:], as long as the data is statement-response pairs
+
+    # shuffle=False to prevent data leakage upon future load_weights
     train_ds, val_ds = train_test_split(df, test_size=0.2, shuffle=False)
 
     ds = df.values.tolist()
@@ -142,8 +144,6 @@ def train(train_batches, val_batches, transformer, optimizer):
 
 
 def main():
-    # Global variables are generally considered as a bad practice
-    # but who cares, bruh?
     global inputs_tokenizer, targets_tokenizer
 
     inputs_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)

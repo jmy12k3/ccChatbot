@@ -6,7 +6,8 @@ import time
 from flask import Flask, jsonify, render_template, request
 
 os.path.append(os.path.dirname(os.path.abspath(__file__)))
-from translate import translate
+
+from translate import translate  # noqa: E402
 
 
 def heartbeat():
