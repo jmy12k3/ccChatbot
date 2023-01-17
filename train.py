@@ -1,105 +1,136 @@
 # coding=utf-8
 import glob
 
-import numpy as np
+import pandas
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
-import data_util
-import model
 from config import getConfig
+from core.Model import Transformer
+from core.Optimizer import ScheduledLearningRate
 
-# region CONSTANTS
+# region Config
 gConfig = {}
 gConfig = getConfig.get_config()
 
-# Preprocessing related
-SEQ_PATH = gConfig["seq_path"]
+# Preprocessing - Data
+TSV_PATH = gConfig["tsv_path"]
 
-# Training related
+# Preprocessing - Tokens
+SOS = gConfig["sos"]
+EOS = gConfig["eos"]
+
+# Hyperparameters - Model
+NUM_LAYERS = gConfig["num_layers"]
+D_MODEL = gConfig["d_model"]
+NUM_HEADS = gConfig["num_heads"]
+DFF = gConfig["dff"]
+MAX_LENGTH = gConfig["max_length"]
+DROPOUT_RATE = gConfig["dropout_rate"]
+
+# Callbacks
+LOGS_DIR = gConfig["logs_dir"]
+MODELS_DIR = gConfig["models_dir"]
+
+# Hyperparameters - Training
 BATCH_SIZE = gConfig["batch_size"]
 EPOCHS = gConfig["epoch"]
-
-# Callbacks related
-LOG_DIR = gConfig["log_dir"]
-MODEL_DIR = gConfig["model_dir"]
-
 # endregion
 
 
-def train_val_split(ds, val_size=0.2, shuffle=False):
-    if shuffle:
-        np.random.shuffle(ds)
-    idx = int(len(ds) * (1 - val_size))
-    train_ds = ds[:idx]
-    val_ds = ds[idx:]
-    return train_ds, val_ds
+def prepare_dataset(tsv):
+    def prepare_batch(inputs, targets):
+        inputs = inputs_tokenizer(inputs)
+        inputs = inputs[:, :MAX_LENGTH]
+        inputs = inputs.to_tensor()
+
+        targets = targets_tokenizer(targets)
+        targets = targets[:, : (MAX_LENGTH + 2)]
+        targets_inputs = targets[:, :-1].to_tensor()
+        targets_labels = targets[:, 1:].to_tensor()
+
+        return (inputs, targets_inputs), targets_labels
+
+    def make_batches(ds, BUFFER_SIZE):
+        return (
+            ds.cache()
+            .shuffle(BUFFER_SIZE)
+            .batch(BATCH_SIZE)
+            .map(prepare_batch, tf.data.AUTOTUNE)
+            .prefetch(tf.data.AUTOTUNE)
+        )
+
+    df = pandas.read_csv(tsv, sep="\t", header=None, on_bad_lines="warn")
+    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(
+        (lambda x: f"{SOS} {str(x).rstrip()} {EOS}")
+    )
+    train_ds, val_ds = train_test_split(df, test_size=0.2, shuffle=False)
+
+    ds = df.values.tolist()
+    train_ds = train_ds.values.tolist()
+    val_ds = val_ds.values.tolist()
+
+    inputs, targets = zip(*ds)
+    train_inputs, train_targets = zip(*train_ds)
+    val_inputs, val_targets = zip(*val_ds)
+
+    inputs_tokenizer.adapt(list(inputs))
+    targets_tokenizer.adapt(list(targets))
+
+    train_ds = tf.data.Dataset.from_tensor_slices(
+        (list(train_inputs), list(train_targets))
+    )
+    val_ds = tf.data.Dataset.from_tensor_slices((list(val_inputs), list(val_targets)))
+
+    BUFFER_SIZE = len(train_inputs)
+
+    train_batches = make_batches(train_ds, BUFFER_SIZE)
+    val_batches = make_batches(val_ds, BUFFER_SIZE)
+
+    return train_batches, val_batches
 
 
-def read_data(path):
-    lines = open(path, encoding="utf-8").readlines()
-    pairs = [
-        [
-            w if i % 2 == 0 else data_util.preprocess_sentence(w)
-            for i, w in enumerate(l.split("\t"))
-        ]
-        for l in lines
-    ]
-    train_pairs, val_pairs = train_val_split(pairs)
+def masked_loss(label, pred):
+    mask = label != 0
+    loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True, reduction="none"
+    )
+    loss = loss_object(label, pred)
 
-    inputs, targets = zip(*pairs)
-    train_inputs, train_targets = zip(*train_pairs)
-    val_inputs, val_targets = zip(*val_pairs)
+    mask = tf.cast(mask, dtype=loss.dtype)
+    loss *= mask
 
-    model.inputs_tokenizer.adapt(list(inputs))
-    model.targets_tokenizer.adapt(list(targets))
+    loss = tf.reduce_sum(loss) / tf.reduce_sum(mask)
+    return loss
 
-    return (
-        train_inputs,
-        train_targets,
-        val_inputs,
-        val_targets,
+
+def masked_accuracy(label, pred):
+    pred = tf.argmax(pred, axis=2)
+    label = tf.cast(label, pred.dtype)
+    match = label == pred
+
+    mask = label != 0
+
+    match = match & mask
+
+    match = tf.cast(match, dtype=tf.float32)
+    mask = tf.cast(mask, dtype=tf.float32)
+    return tf.reduce_sum(match) / tf.reduce_sum(mask)
+
+
+def train(train_batches, val_batches, transformer, optimizer):
+    transformer.compile(
+        loss=masked_loss,
+        optimizer=optimizer,
+        metrics=[masked_accuracy],
     )
 
-
-def prepare_batch(inputs, targets):
-    inputs = model.inputs_tokenizer(inputs)
-    inputs = inputs[:, : model.MAX_LENGTH]
-    inputs = inputs.to_tensor()
-
-    targets = model.targets_tokenizer(targets)
-    targets = targets[:, : (model.MAX_LENGTH + 2)]
-    targets_inputs = targets[:, :-1].to_tensor()
-    targets_labels = targets[:, 1:].to_tensor()
-
-    return (inputs, targets_inputs), targets_labels
-
-
-def make_batches(ds):
-    return (
-        ds.cache()
-        .shuffle(BUFFER_SIZE)
-        .batch(BATCH_SIZE)
-        .map(prepare_batch, tf.data.AUTOTUNE)
-        .prefetch(tf.data.AUTOTUNE)
-    )
-
-
-def train():
-    transformer = model.instantiate()
-    for (inputs, targets_inputs), _ in train_batches.take(1):
-        transformer((inputs, targets_inputs))
-    transformer.summary()
-
-    weights = glob.glob(f"{MODEL_DIR}/*.h5")
-    if weights:
-        transformer.load_weights(f"{MODEL_DIR}/{weights[-1]}")
-    
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-        filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODEL_DIR,
+        filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODELS_DIR,
         save_best_only=True,
         save_weights_only=True,
     )
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOGS_DIR)
     callbacks = [model_checkpoint_callback, tensorboard_callback]
 
     transformer.fit(
@@ -110,31 +141,39 @@ def train():
     )
 
 
-# Experimental function
-"""
-def predict(sentence):
-    sentence = " ".join(data_util.tok(sentence))
-    sentence = tf.constant(sentence)
+def main():
+    global inputs_tokenizer, targets_tokenizer
+    inputs_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
+    targets_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
 
-    translator = model.Translator(transformer)
+    train_batches, val_batches = prepare_dataset(TSV_PATH)
 
-    result, _ = translator(sentence)
+    transformer = Transformer(
+        num_layers=NUM_LAYERS,
+        d_model=D_MODEL,
+        num_heads=NUM_HEADS,
+        dff=DFF,
+        input_vocab_size=inputs_tokenizer.vocabulary_size(),
+        target_vocab_size=targets_tokenizer.vocabulary_size(),
+        dropout_rate=DROPOUT_RATE,
+    )
 
-    return result
-"""
+    for (inputs, targets_inputs), _ in train_batches.take(1):
+        transformer((inputs, targets_inputs))
+    transformer.summary()
+
+    weights = sorted(glob.glob(f"{MODELS_DIR}/*.h5"))
+    if weights:
+        transformer.load_weights(f"{weights[-1]}")
+        print(f"Latest weights {weights[-1]} restored!")
+
+    learning_rate = ScheduledLearningRate(D_MODEL)
+    optimizer = tf.keras.optimizers.Adam(
+        learning_rate=learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9
+    )
+
+    train(train_batches, val_batches, transformer, optimizer)
 
 
 if __name__ == "__main__":
-    train_inputs, train_targets, val_inputs, val_targets = read_data(SEQ_PATH)
-
-    train_ds = tf.data.Dataset.from_tensor_slices(
-        (list(train_inputs), list(train_targets))
-    )
-    val_ds = tf.data.Dataset.from_tensor_slices((list(val_inputs), list(val_targets)))
-
-    BUFFER_SIZE = len(train_inputs)
-
-    train_batches = make_batches(train_ds)
-    val_batches = make_batches(val_ds)
-
-    train()
+    main()

@@ -1,13 +1,12 @@
 # coding=utf-8
 import os
-import time
 import threading
+import time
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, jsonify, render_template, request
 
 os.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-import train
+from translate import translate
 
 
 def heartbeat():
@@ -25,7 +24,7 @@ app = Flask(__name__, static_url_path="/static")
 @app.route("/message", methods=["POST"])
 def reply():
     req_msg = request.form["msg"]
-    res_msg = train.predict(req_msg)
+    res_msg = translate(req_msg)
     return jsonify({"text": res_msg})
 
 

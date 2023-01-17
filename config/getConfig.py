@@ -2,9 +2,9 @@
 import os
 from configparser import SafeConfigParser
 
-config_file = os.getcwd() + "/config/seq2seq.ini"
+config_file = os.getcwd() + "/config/settings.ini"
 if not os.path.exists(config_file):
-    config_file = os.path.dirname(os.getcwd()) + "/config/seq2seq.ini"
+    config_file = os.path.dirname(os.getcwd()) + "/config/settings.ini"
 
 
 def get_config():
