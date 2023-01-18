@@ -1,11 +1,12 @@
 # coding=utf-8
 import os
+import sys
 import threading
 import time
 
 from flask import Flask, jsonify, render_template, request
 
-os.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from translate import translate  # noqa: E402
 
