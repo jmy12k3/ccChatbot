@@ -16,7 +16,8 @@ A highly customizable chatbot which could be trained with custom corpus.
 * [x] Better text cleaning
 * [ ] Better documentation
 * [ ] To filter text by MAX_LENGTH instead of clamping
-* [ ] To save a subclassed model with optimizer state instead of only weights
+* [ ] To save a subclassed model with optimizer state instead of weights only
+* [ ] To support attention weights plotting
 
 
 
