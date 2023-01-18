@@ -14,15 +14,12 @@ from core.Optimizer import ScheduledLearningRate
 gConfig = {}
 gConfig = getConfig.get_config()
 
-# Preprocessing - Data
 TSV_PATH = gConfig["tsv_path"]
 
-# Preprocessing - Tokens
 SOS = gConfig["sos"]
 EOS = gConfig["eos"]
 UNK = gConfig["unk"]
 
-# Hyperparameters - Model
 NUM_LAYERS = gConfig["num_layers"]
 D_MODEL = gConfig["d_model"]
 NUM_HEADS = gConfig["num_heads"]
@@ -30,11 +27,9 @@ DFF = gConfig["dff"]
 MAX_LENGTH = gConfig["max_length"]
 DROPOUT_RATE = gConfig["dropout_rate"]
 
-# Callbacks
-LOGS_DIR = gConfig["logs_dir"]
-MODELS_DIR = gConfig["models_dir"]
+LOG_DIR = gConfig["log_dir"]
+MODEL_DIR = gConfig["model_dir"]
 
-# Hyperparameters - Training
 BATCH_SIZE = gConfig["batch_size"]
 EPOCHS = gConfig["epoch"]
 
@@ -43,13 +38,11 @@ EPOCHS = gConfig["epoch"]
 
 def prepare_dataset(inputs_tokenizer, targets_tokenizer, tsv):
     # (lambda x: UNK if not x else x)
-    # This function is for better readability.
-    def unk(x):
+    def apply_unk(x):
         return UNK if not x else x
 
     # lambda x: (f"{SOS} {str(x).rstrip()} {EOS}") if x != UNK else UNK
-    # This function is for better readability.
-    def sos_eos(x):
+    def apply_token(x):
         return f"{SOS} {str(x).rstrip()} {EOS}" if x != UNK else UNK
 
     def prepare_batch(inputs, targets):
@@ -74,9 +67,9 @@ def prepare_dataset(inputs_tokenizer, targets_tokenizer, tsv):
         )
 
     df = pd.read_csv(tsv, sep="\t", nrows=0).columns
-    df = pd.read_csv(tsv, sep="\t", converters={column: unk for column in df})
+    df = pd.read_csv(tsv, sep="\t", converters={column: apply_unk for column in df})
 
-    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(sos_eos)
+    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(apply_token)
 
     train_ds, val_ds = train_test_split(df, test_size=0.2, shuffle=False)
 
@@ -140,11 +133,11 @@ def train(train_batches, val_batches, transformer, optimizer):
     )
 
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-        filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODELS_DIR,
+        filepath="%s/model.{epoch:02d}-{val_loss:.4f}.h5" % MODEL_DIR,
         save_best_only=True,
         save_weights_only=True,
     )
-    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOGS_DIR)
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR)
     callbacks = [model_checkpoint_callback, tensorboard_callback]
 
     transformer.fit(
@@ -176,7 +169,7 @@ def main():
     for (inputs, targets_inputs), _ in train_batches.take(1):
         transformer((inputs, targets_inputs))
 
-    weights = sorted(glob.glob(f"{MODELS_DIR}/*.h5"))
+    weights = sorted(glob.glob(f"{MODEL_DIR}/*.h5"))
     if weights:
         transformer.load_weights(f"{weights[-1]}")
         print("Latest weights restored!")

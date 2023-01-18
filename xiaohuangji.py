@@ -32,6 +32,7 @@ tsv.write("question\tanswer\n")
 with open(RESOURCE_PATH, encoding="utf-8") as f:
     one_conv = ""
     i = 0
+
     for line in f:
         line = line.strip("\n")
         line = remove(

@@ -8,11 +8,9 @@ from config import getConfig
 gConfig = {}
 gConfig = getConfig.get_config()
 
-# Preprocessing - Tokens
 SOS = gConfig["sos"]
 EOS = gConfig["eos"]
 
-# Hyperparameters - Model
 MAX_LENGTH = gConfig["max_length"]
 
 # endregion
@@ -25,7 +23,7 @@ class Translator(tf.Module):
         self.transformer = transformer
 
     def __call__(self, sentence, max_length=MAX_LENGTH):
-        assert isinstance(sentence, tf.Tensor)
+        assert isinstance(sentence, tf.Tensor), "Input must be a tensor. (tf.constant)"
         if len(sentence.shape) == 0:
             sentence = sentence[tf.newaxis]
 
@@ -55,12 +53,28 @@ class Translator(tf.Module):
 
         output = tf.transpose(output_array.stack())
 
-        vocab = self.targets_tokenizer.get_vocabulary()
-        index_lookup = dict(zip(range(len(vocab)), vocab))
+        v = self.targets_tokenizer.get_vocabulary()
 
-        text = " ".join([index_lookup[i] for i in output.numpy().tolist()[0]])
+        detokenize = dict(zip(range(len(v)), v))
+        lookup = {i: v for v, i in detokenize.items()}
+
+        text = " ".join([detokenize[i] for i in output.numpy().tolist()[0][1:-1]])
+        tokens = [lookup[i] for i in output.numpy().tolist()[0]]
 
         self.transformer([encoder_input, output[:, :-1]], training=False)
         attention_weights = self.transformer.decoder.last_attn_scores
 
-        return text, attention_weights
+        return text, tokens, attention_weights
+
+
+class ExportTranslator(tf.Module):
+    def __init__(self, translator):
+        self.translator = translator
+
+    @tf.function(input_signature=[tf.TensorSpec(shape=[], dtype=tf.string)])
+    def __call__(self, sentence):
+        (result, tokens, attention_weights) = self.translator(
+            sentence, max_length=MAX_LENGTH
+        )
+
+        return result
