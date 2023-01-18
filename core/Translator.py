@@ -3,13 +3,19 @@ import tensorflow as tf
 
 from config import getConfig
 
+# region Config
+
 gConfig = {}
 gConfig = getConfig.get_config()
 
-MAX_LENGTH = gConfig["max_length"]
-
+# Preprocessing - Tokens
 SOS = gConfig["sos"]
 EOS = gConfig["eos"]
+
+# Hyperparameters - Model
+MAX_LENGTH = gConfig["max_length"]
+
+# endregion
 
 
 class Translator(tf.Module):
