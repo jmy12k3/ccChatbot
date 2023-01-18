@@ -10,6 +10,7 @@ from core.Model import Transformer
 from core.Optimizer import ScheduledLearningRate
 
 # region Config
+
 gConfig = {}
 gConfig = getConfig.get_config()
 
@@ -19,6 +20,7 @@ TSV_PATH = gConfig["tsv_path"]
 # Preprocessing - Tokens
 SOS = gConfig["sos"]
 EOS = gConfig["eos"]
+UNK = gConfig["unk"]
 
 # Hyperparameters - Model
 NUM_LAYERS = gConfig["num_layers"]
@@ -35,10 +37,21 @@ MODELS_DIR = gConfig["models_dir"]
 # Hyperparameters - Training
 BATCH_SIZE = gConfig["batch_size"]
 EPOCHS = gConfig["epoch"]
+
 # endregion
 
 
-def prepare_dataset(tsv):
+def prepare_dataset(inputs_tokenizer, targets_tokenizer, tsv):
+    # (lambda x: UNK if not x else x)
+    # This function is for better readability.
+    def unk(x):
+        return UNK if not x else x
+
+    # lambda x: (f"{SOS} {str(x).rstrip()} {EOS}") if x != UNK else UNK
+    # This function is for better readability.
+    def sos_eos(x):
+        return f"{SOS} {str(x).rstrip()} {EOS}" if x != UNK else UNK
+
     def prepare_batch(inputs, targets):
         inputs = inputs_tokenizer(inputs)
         inputs = inputs[:, :MAX_LENGTH]
@@ -51,7 +64,7 @@ def prepare_dataset(tsv):
 
         return (inputs, targets_inputs), targets_labels
 
-    def make_batches(ds, BUFFER_SIZE):
+    def make_batches(ds):
         return (
             ds.cache()
             .shuffle(BUFFER_SIZE)
@@ -60,12 +73,11 @@ def prepare_dataset(tsv):
             .prefetch(tf.data.AUTOTUNE)
         )
 
-    df = pd.read_csv(tsv, sep="\t", header=None, on_bad_lines="warn")
-    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(
-        (lambda x: f"{SOS} {str(x).rstrip()} {EOS}")
-    )  # or [:, 1:], as long as the data is statement-response pairs
+    df = pd.read_csv(tsv, sep="\t", nrows=0).columns
+    df = pd.read_csv(tsv, sep="\t", converters={column: unk for column in df})
 
-    # shuffle=False to prevent data leakage upon future load_weights
+    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(sos_eos)
+
     train_ds, val_ds = train_test_split(df, test_size=0.2, shuffle=False)
 
     ds = df.values.tolist()
@@ -86,8 +98,8 @@ def prepare_dataset(tsv):
 
     BUFFER_SIZE = len(train_inputs)
 
-    train_batches = make_batches(train_ds, BUFFER_SIZE)
-    val_batches = make_batches(val_ds, BUFFER_SIZE)
+    train_batches = make_batches(train_ds)
+    val_batches = make_batches(val_ds)
 
     return train_batches, val_batches
 
@@ -144,12 +156,12 @@ def train(train_batches, val_batches, transformer, optimizer):
 
 
 def main():
-    global inputs_tokenizer, targets_tokenizer
-
     inputs_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
     targets_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
 
-    train_batches, val_batches = prepare_dataset(TSV_PATH)
+    train_batches, val_batches = prepare_dataset(
+        inputs_tokenizer, targets_tokenizer, TSV_PATH
+    )
 
     transformer = Transformer(
         num_layers=NUM_LAYERS,
@@ -163,16 +175,17 @@ def main():
 
     for (inputs, targets_inputs), _ in train_batches.take(1):
         transformer((inputs, targets_inputs))
-    transformer.summary()
 
     weights = sorted(glob.glob(f"{MODELS_DIR}/*.h5"))
     if weights:
         transformer.load_weights(f"{weights[-1]}")
-        print(f"Latest weights {weights[-1]} restored!")
+        print("Latest weights restored!")
+
+    transformer.summary()
 
     learning_rate = ScheduledLearningRate(D_MODEL)
     optimizer = tf.keras.optimizers.Adam(
-        learning_rate=learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9
+        learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9
     )
 
     train(train_batches, val_batches, transformer, optimizer)

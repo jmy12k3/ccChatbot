@@ -4,17 +4,14 @@ A highly customizable chatbot which could be trained with custom corpus.
 
 
 
-## Limitations
+## Note
 
-1. No matter which separator the corpus uses, it **must be a pair of statement and responses**
-
-2. <u>*preprocess.py depends on the format and the separator of the corpus*</u> 
-
-   You could write your own parser for corpuses with other format into **.tsv format without header**
+- The corpus must be **a pair of statement and response**
+- You could write your own parser for corpuses with other format into **.tsv format**
 
    
 
-### Technical Limitations
+### Roadmap
 
 * [x] Better text cleaning
 * [ ] Better documentation
