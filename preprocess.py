@@ -28,7 +28,6 @@ tok = hanlp.load(hanlp.pretrained.tok.CTB9_TOK_ELECTRA_SMALL)
 
 tsv = open(TSV_PATH, "w")
 
-# Write header
 tsv.write("question\tanswer\n")
 
 with open(RESOURCE_PATH, encoding="utf-8") as f:
