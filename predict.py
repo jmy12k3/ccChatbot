@@ -4,6 +4,7 @@ import glob
 import hanlp
 import pandas as pd
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
 from config import getConfig
 from core.Model import Transformer
@@ -16,6 +17,8 @@ gConfig = getConfig.get_config()
 
 TSV_PATH = gConfig["tsv_path"]
 
+SOS = gConfig["sos"]
+EOS = gConfig["eos"]
 UNK = gConfig["unk"]
 
 NUM_LAYERS = gConfig["num_layers"]
@@ -40,11 +43,6 @@ print("Building model...")
 
 
 def prepare_dataset(inputs_tokenizer, targets_tokenizer, tsv):
-    """A minimal version of prepare_dataset() from train.py"""
-
-    def apply_unk(x):
-        return UNK if not x else x
-
     def prepare_batch(inputs, targets):
         inputs = inputs_tokenizer(inputs)
         inputs = inputs[:, :MAX_LENGTH]
@@ -66,28 +64,40 @@ def prepare_dataset(inputs_tokenizer, targets_tokenizer, tsv):
             .prefetch(tf.data.AUTOTUNE)
         )
 
-    df = pd.read_csv(tsv, sep="\t", nrows=0).columns
-    df = pd.read_csv(tsv, sep="\t", converters={column: apply_unk for column in df})
+    df = pd.read_csv(TSV_PATH, sep="\t", nrows=0).columns
+    df = pd.read_csv(
+        TSV_PATH,
+        sep="\t",
+        converters={column: (lambda x: UNK if not x else x) for column in df},
+    )
+
+    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(
+        lambda x: (f"{SOS} {str(x).rstrip()} {EOS}") if x != UNK else UNK
+    )
 
     ds = df.values.tolist()
-
     inputs, targets = zip(*ds)
 
     inputs_tokenizer.adapt(list(inputs))
     targets_tokenizer.adapt(list(targets))
 
-    ds = tf.data.Dataset.from_tensor_slices(
-        (list(inputs[:BATCH_SIZE]), list(targets[:BATCH_SIZE]))
+    _ds, sample_ds = train_test_split(df, test_size=0.1, random_state=42)
+
+    sample_ds = sample_ds.values.tolist()
+    sample_ds_inputs, sample_ds_targets = zip(*sample_ds)
+
+    sample_ds = tf.data.Dataset.from_tensor_slices(
+        (sample_ds_inputs, sample_ds_targets)
     )
 
-    BUFFER_SIZE = len(inputs)
+    BUFFER_SIZE = len(sample_ds_inputs)
 
-    batches = make_batches(ds)
+    sample_batches = make_batches(sample_ds)
 
-    return batches
+    return sample_batches
 
 
-batches = prepare_dataset(inputs_tokenizer, targets_tokenizer, TSV_PATH)
+sample_batches = prepare_dataset(inputs_tokenizer, targets_tokenizer, TSV_PATH)
 
 transformer = Transformer(
     num_layers=NUM_LAYERS,
@@ -99,13 +109,13 @@ transformer = Transformer(
     dropout_rate=DROPOUT_RATE,
 )
 
-for (inputs, targets_inputs), _ in batches.take(1):
+for (inputs, targets_inputs), _ in sample_batches.take(1):
     transformer((inputs, targets_inputs))
 
 weights = sorted(glob.glob(f"{MODEL_DIR}/*.h5"))
 if weights:
     transformer.load_weights(f"{weights[-1]}")
-    print("Latest weights restored!")
+    print("\nLatest weights restored!\n")
 
 
 def predict(sentence):
@@ -131,5 +141,4 @@ def predict_test(sentence):
 
 
 if __name__ == "__main__":
-    print("This is a module. Please run ./web/app.py instead.")
     exit()
