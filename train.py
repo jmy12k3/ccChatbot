@@ -35,7 +35,15 @@ EPOCHS = gConfig["epoch"]
 
 
 def prepare_dataset(tsv, qn_tokenizer, ans_tokenizer):
-    # Tokenize, filter and pad sentences.
+    # Avoiding the use of lambda functions.
+    def apply_unk(x):
+        return UNK if not x else x
+
+    # Avoiding the use of lambda functions.
+    def apply_sos_eos(x):
+        return (f"{SOS} {str(x).rstrip()} {EOS}") if x != UNK else UNK
+
+    # Tokenize, clamp, and pad the questions and answers.
     def prepare_batch(qn, ans):
         qn = qn_tokenizer(qn)
         qn = qn[:, :MAX_LENGTH]
@@ -48,7 +56,7 @@ def prepare_dataset(tsv, qn_tokenizer, ans_tokenizer):
 
         return (qn, ans_inputs), ans_labels
 
-    # Create batches and cache the dataset to memory to get a speedup while reading from it. # noqa E501
+    # Cache, shuffle, batch, map and prefetch the dataset.
     def make_batches(ds):
         return (
             ds.cache()
@@ -58,42 +66,35 @@ def prepare_dataset(tsv, qn_tokenizer, ans_tokenizer):
             .prefetch(tf.data.AUTOTUNE)
         )
 
-    # Read the dataset.
+    # Read the tsv file header.
     df = pd.read_csv(tsv, sep="\t", nrows=0).columns
-    df = pd.read_csv(
-        tsv, sep="\t", converters={col: (lambda x: UNK if not x else x) for col in df}
-    )
 
-    # Add SOS and EOS to the answers.
-    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(
-        lambda x: (f"{SOS} {str(x).rstrip()} {EOS}") if x != UNK else UNK
-    )
+    # Read the tsv file and apply the UNK token to the empty cells.
+    df = pd.read_csv(tsv, sep="\t", converters={col: apply_unk for col in df})
 
-    # Split the dataset into train and validation sets.
+    # Apply the SOS and EOS tokens to the answers.
+    df.iloc[:, -1:] = df.iloc[:, -1:].applymap(apply_sos_eos)
+
+    # Random_state is set to 42 for reproducibility.
     train_ds, val_ds = train_test_split(df, test_size=0.2, random_state=42)
 
-    # Convert the dataset into lists.
     ds = df.values.tolist()
     train_ds = train_ds.values.tolist()
     val_ds = val_ds.values.tolist()
 
-    # Split the questions and answers.
     qn, ans = zip(*ds)
     train_qn, train_ans = zip(*train_ds)
     val_qn, val_ans = zip(*val_ds)
 
-    # Create tf.data.Dataset objects.
     train_ds = tf.data.Dataset.from_tensor_slices((list(train_qn), list(train_ans)))
     val_ds = tf.data.Dataset.from_tensor_slices((list(val_qn), list(val_ans)))
 
-    # Calculate the number of batches.
-    BUFFER_SIZE = len(train_qn)
+    # Avoiding the use of len(train_qn).
+    BUFFER_SIZE = train_ds.cardinality().numpy()
 
-    # Create the vocabulary.
     qn_tokenizer.adapt(list(qn))
     ans_tokenizer.adapt(list(ans))
 
-    # Create batches.
     train_batches = make_batches(train_ds)
     val_batches = make_batches(val_ds)
 
@@ -101,8 +102,6 @@ def prepare_dataset(tsv, qn_tokenizer, ans_tokenizer):
 
 
 def masked_loss(label, pred):
-    """Calculate the loss for the masked labels."""
-
     mask = label != 0
     loss_object = tf.keras.losses.SparseCategoricalCrossentropy(
         from_logits=True, reduction="none"
@@ -117,8 +116,6 @@ def masked_loss(label, pred):
 
 
 def masked_accuracy(label, pred):
-    """Calculate the accuracy for the masked labels."""
-
     pred = tf.argmax(pred, axis=2)
     label = tf.cast(label, pred.dtype)
     match = label == pred
@@ -133,23 +130,20 @@ def masked_accuracy(label, pred):
 
 
 def train(train_batches, val_batches, transformer):
-    # Create a BackupAndRestore callback.
+    # Save the model every epoch in case of interruption.
     checkpoint_callback = tf.keras.callbacks.BackupAndRestore(backup_dir=MODEL_DIR)
 
-    # Create a ModelCheckpoint callback.
+    # Save the weights with the lowest validation loss for inference.
     model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath="%s/weights.{epoch:02d}-{val_loss:.4f}.h5" % MODEL_DIR,
         save_weights_only=True,
         save_best_only=True,
     )
 
-    # Create a TensorBoard callback.
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=LOG_DIR)
 
-    # Create the callbacks.
     callbacks = [checkpoint_callback, model_checkpoint_callback, tensorboard_callback]
 
-    # Fit the model.
     transformer.fit(
         train_batches,
         epochs=EPOCHS,
@@ -159,14 +153,12 @@ def train(train_batches, val_batches, transformer):
 
 
 def main():
-    # Create the tokenizer.
+    # Avoiding the use of tf.keras.preprocessing.text.Tokenizer.
     qn_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
     ans_tokenizer = tf.keras.layers.TextVectorization(standardize=None, ragged=True)
 
-    # Prepare the dataset.
     train_batches, val_batches = prepare_dataset(TSV_PATH, qn_tokenizer, ans_tokenizer)
 
-    # Create the model.
     transformer = Transformer(
         num_layers=NUM_LAYERS,
         d_model=D_MODEL,
@@ -177,18 +169,21 @@ def main():
         dropout_rate=DROPOUT_RATE,
     )
 
-    # Print the model summary.
-    for (q, a_inputs), _ in train_batches.take(1):
-        transformer((q, a_inputs))
+    # Run a test batch to initialize the model.
+    for (qn, ans_inputs), _ in train_batches.take(1):
+        transformer((qn, ans_inputs))
+
     transformer.summary()
 
-    # Create the learning rate scheduler.
+    # Learning rate scheduler as per the paper.
     learning_rate = ScheduledLearningRate(D_MODEL)
+
+    # Adam optimizer beta_1, beta_2 and epsilon values as per the paper.
     optimizer = tf.keras.optimizers.Adam(
         learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9
     )
 
-    # Compile the model.
+    # Masked loss and accuracy as per the paper to ignore padding tokens.
     transformer.compile(
         loss=masked_loss,
         optimizer=optimizer,

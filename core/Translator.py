@@ -17,9 +17,9 @@ MAX_LENGTH = gConfig["max_length"]
 
 
 class Translator(tf.Module):
-    def __init__(self, inputs_tokenizer, targets_tokenizer, transformer):
-        self.inputs_tokenizer = inputs_tokenizer
-        self.targets_tokenizer = targets_tokenizer
+    def __init__(self, qn_tokenizer, ans_tokenizer, transformer):
+        self.qn_tokenizer = qn_tokenizer
+        self.ans_tokenizer = ans_tokenizer
         self.transformer = transformer
 
     def __call__(self, sentence, max_length=MAX_LENGTH):
@@ -27,11 +27,11 @@ class Translator(tf.Module):
         if len(sentence.shape) == 0:
             sentence = sentence[tf.newaxis]
 
-        sentence = self.inputs_tokenizer(sentence).to_tensor()
+        sentence = self.qn_tokenizer(sentence).to_tensor()
 
         encoder_input = sentence
 
-        start_end = self.targets_tokenizer.get_vocabulary()
+        start_end = self.ans_tokenizer.get_vocabulary()
         start = tf.constant(start_end.index(SOS), dtype=tf.int64)[tf.newaxis]
         end = tf.constant(start_end.index(EOS), dtype=tf.int64)[tf.newaxis]
 
@@ -53,7 +53,7 @@ class Translator(tf.Module):
 
         output = tf.transpose(output_array.stack())
 
-        v = self.targets_tokenizer.get_vocabulary()
+        v = self.ans_tokenizer.get_vocabulary()
 
         detokenize = dict(zip(range(len(v)), v))
         lookup = {i: v for v, i in detokenize.items()}
