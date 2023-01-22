@@ -2,8 +2,3 @@
 *
 # Except this file
 !.gitignore
-
-# Custom
-!.DS_STORE
-!.icloud
-!__pycache__/
