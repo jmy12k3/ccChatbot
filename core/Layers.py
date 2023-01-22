@@ -32,6 +32,7 @@ class Encoder(tf.keras.layers.Layer):
                 units,
                 return_sequences=True,
                 kernel_initializer="orthogonal",
+                dropout=0.2,
             ),
         )
 
@@ -60,7 +61,7 @@ class CrossAttention(tf.keras.layers.Layer):
     def __init__(self, units, **kwargs):
         super().__init__()
         self.mha = tf.keras.layers.MultiHeadAttention(
-            key_dim=units, num_heads=1, **kwargs
+            key_dim=units, num_heads=4, **kwargs
         )
         self.layernorm = tf.keras.layers.LayerNormalization()
         self.add = tf.keras.layers.Add()
@@ -121,9 +122,10 @@ class Decoder(tf.keras.layers.Layer):
             return_sequences=True,
             return_state=True,
             kernel_initializer="orthogonal",
+            dropout=0.2,
         )
 
-        self.attention = CrossAttention(units)
+        self.attention = CrossAttention(units, dropout=0.2)
 
         self.output_layer = tf.keras.layers.Dense(self.vocab_size)
 
