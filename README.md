@@ -13,7 +13,7 @@ A highly customizable chatbot which could be trained with custom corpus.
 
 ### Roadmap
 
-- [ ] predict.py: to be finished
+- [x] predict.py: to be finished
 - [ ] evaluate.py: to be finished
 
 
