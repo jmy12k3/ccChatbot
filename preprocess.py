@@ -22,7 +22,7 @@ TSV_PATH = gConfig["tsv_path"]
 # endregion
 
 if not os.path.exists(RSC_PATH):
-    raise FileNotFoundError
+    raise FileNotFoundError("Resource file not found.")
 
 tok = hanlp.load(hanlp.pretrained.tok.CTB9_TOK_ELECTRA_SMALL)
 
