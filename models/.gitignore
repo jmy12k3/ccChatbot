@@ -1,0 +1,9 @@
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+
+# Custom
+!.DS_STORE
+!.icloud
+!__pycache__/
