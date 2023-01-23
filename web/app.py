@@ -8,13 +8,12 @@ from flask import Flask, jsonify, render_template, request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import getConfig  # noqa: E402
+from config import Config  # noqa: E402
 from predict import predict  # noqa: E402
 
 # region Config
 
-gConfig = {}
-gConfig = getConfig.get_config()
+gConfig = Config.config()
 
 UNK = gConfig["unk"]
 
@@ -30,7 +29,7 @@ def heartbeat():
 timer = threading.Timer(60, heartbeat)
 timer.start()
 
-app = Flask(__name__, static_url_path="/static")
+app = Flask(__name__, "/static")
 
 
 @app.route("/message", methods=["POST"])
@@ -51,4 +50,4 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8808)
+    app.run("0.0.0.0", 8888)

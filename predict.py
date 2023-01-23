@@ -4,25 +4,21 @@ import einops
 import hanlp
 import tensorflow as tf
 
-from config import getConfig
-from core import Checkpoint
-from core.Layers import Decoder
-from core.Model import Translator
-from core.Module import ShapeChecker
+from config import Config
+from core import Checkpoint, Layers, Model, Module
 
 # region Config
 
-gConfig = {}
-gConfig = getConfig.get_config()
+config = Config.config()
 
-CTX_PATH = gConfig["ctx_path"]
-TGT_PATH = gConfig["tgt_path"]
+CTX_PATH = config["ctx_path"]
+TGT_PATH = config["tgt_path"]
 
-MODEL_DIR = gConfig["model_dir"]
+MODEL_DIR = config["model_dir"]
 
-MAX_LENGTH = gConfig["max_length"]
+MAX_LENGTH = config["max_length"]
 
-UNITS = gConfig["units"]
+UNITS = config["units"]
 
 # endregion
 
@@ -44,11 +40,9 @@ try:
 except OSError:
     raise FileNotFoundError("Cache not found. Please run train.py first.")
 
-model = Translator(UNITS, context_text_processor, target_text_processor)
+model = Model.Translator(UNITS, context_text_processor, target_text_processor)
 
-ckpt, ckpt_manager = Checkpoint.get_ckpt(
-    model, optimizer=None, checkpoint_dir=MODEL_DIR
-)
+ckpt, ckpt_manager = Checkpoint.checkpoint(MODEL_DIR, model=model)
 
 if not ckpt_manager.latest_checkpoint:
     raise FileNotFoundError("Checkpoint not found. Please run train.py first.")
@@ -56,47 +50,47 @@ else:
     ckpt.restore(ckpt_manager.latest_checkpoint)
 
 
-@Decoder.add_method
+@Layers.Decoder.add_method
 def get_initial_state(self, context):
     batch_size = tf.shape(context)[0]
     start_tokens = tf.fill([batch_size, 1], self.start_token)
-    done = tf.zeros([batch_size, 1], dtype=tf.bool)
+    done = tf.zeros([batch_size, 1], tf.bool)
     embedded = self.embedding(start_tokens)
     return start_tokens, done, self.rnn.get_initial_state(embedded)[0]
 
 
-@Decoder.add_method
+@Layers.Decoder.add_method
 def tokens_to_text(self, tokens):
     words = self.id_to_word(tokens)
-    result = tf.strings.reduce_join(words, axis=-1, separator=" ")
+    result = tf.strings.reduce_join(words, -1, separator=" ")
     return result
 
 
-@Decoder.add_method
+@Layers.Decoder.add_method
 def get_next_token(self, context, next_token, done, state, temperature=0.0):
     logits, state = self(context, next_token, state=state, return_state=True)
 
     if temperature == 0.0:
-        next_token = tf.argmax(logits, axis=-1)
+        next_token = tf.argmax(logits, -1)
     else:
         logits = logits[:, -1, :] / temperature
-        next_token = tf.random.categorical(logits, num_samples=1)
+        next_token = tf.random.categorical(logits, 1)
 
     done = done | (next_token == self.end_token)
-    next_token = tf.where(done, tf.constant(0, dtype=tf.int64), next_token)
+    next_token = tf.where(done, tf.constant(0, tf.int64), next_token)
 
     return next_token, done, state
 
 
-@Translator.add_method
+@Model.Translator.add_method
 def translate(self, texts, *, max_length=MAX_LENGTH, temperature=tf.constant(0.0)):
-    shape_checker = ShapeChecker()
+    shape_checker = Module.ShapeChecker()
     context = self.encoder.convert_input(texts)
     shape_checker(context, "batch s units")
 
     next_token, done, state = self.decoder.get_initial_state(context)
 
-    tokens = tf.TensorArray(tf.int64, size=1, dynamic_size=True)
+    tokens = tf.TensorArray(tf.int64, 1, True)
 
     for t in tf.range(max_length):
         next_token, done, state = self.decoder.get_next_token(

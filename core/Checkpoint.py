@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 
-def get_ckpt(model, optimizer, checkpoint_dir, patience=None):
-    ckpt = tf.train.Checkpoint(model=model, optimizer=optimizer)
+def checkpoint(checkpoint_dir, patience=None, **kwargs):
+    ckpt = tf.train.Checkpoint(**kwargs)
     ckpt_manager = tf.train.CheckpointManager(
         ckpt, checkpoint_dir, max_to_keep=patience
     )

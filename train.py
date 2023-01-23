@@ -4,37 +4,36 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
-from config import getConfig
-from core import Checkpoint
-from core.Model import Translator
+from config import Config
+from core import Checkpoint, Model
 
 # region Config
 
-gConfig = {}
-gConfig = getConfig.get_config()
+config = Config.config()
 
-TSV_PATH = gConfig["tsv_path"]
-CTX_PATH = gConfig["ctx_path"]
-TGT_PATH = gConfig["tgt_path"]
+TSV_PATH = config["tsv_path"]
+CTX_PATH = config["ctx_path"]
+TGT_PATH = config["tgt_path"]
 
-SOS = gConfig["sos"]
-EOS = gConfig["eos"]
-UNK = gConfig["unk"]
+SOS = config["sos"]
+EOS = config["eos"]
+UNK = config["unk"]
 
-LOG_DIR = gConfig["log_dir"]
-MODEL_DIR = gConfig["model_dir"]
+LOG_DIR = config["log_dir"]
+MODEL_DIR = config["model_dir"]
 
-MAX_LENGTH = gConfig["max_length"]
+MAX_LENGTH = config["max_length"]
 
-UNITS = gConfig["units"]
+EMB_DIM = config["emb_dim"]
+UNITS = config["units"]
 
-BATCH_SIZE = gConfig["batch_size"]
-EPOCHS = gConfig["epochs"]
+BATCH_SIZE = config["batch_size"]
+EPOCHS = config["epochs"]
 
 # endregion
 
 
-def get_batches(tsv_path, context_text_processor, target_text_processor):
+def prepare_batches(tsv_path, context_text_processor, target_text_processor):
     def apply_unk(x):
         return UNK if not x else x
 
@@ -66,7 +65,6 @@ def get_batches(tsv_path, context_text_processor, target_text_processor):
 
     df = pd.read_csv(tsv_path, sep="\t", converters={col: apply_unk for col in df})
 
-    # The TSV file must be in 2 columns only for this operation
     df.iloc[:, -1:] = df.iloc[:, -1:].applymap(apply_sos_eos)
 
     train_ds, val_ds = train_test_split(df, test_size=0.2, random_state=42)
@@ -127,11 +125,14 @@ def train(train_batches, val_batches, model):
 
     model.compile(optimizer=optimizer)
 
-    ckpt, ckpt_manager = Checkpoint.get_ckpt(model, optimizer, MODEL_DIR, patience=4)
-
+    ckpt, ckpt_manager = Checkpoint.checkpoint(
+        MODEL_DIR, 6, optimizer=optimizer, model=model
+    )
     checkpoint_callback = Checkpoint.Checkpoint(ckpt, ckpt_manager)
 
-    early_stopping_callback = tf.keras.callbacks.EarlyStopping(patience=3)
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+        "val_pp", patience=5, baseline=2
+    )
 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(LOG_DIR)
 
@@ -157,13 +158,13 @@ def main():
         standardize=None, ragged=True
     )
 
-    train_batches, val_batches = get_batches(
+    train_batches, val_batches = prepare_batches(
         TSV_PATH, context_text_processor, target_text_processor
     )
 
-    writer = tf.summary.create_file_writer(LOG_DIR)
-
-    model = Translator(UNITS, context_text_processor, target_text_processor, writer)
+    model = Model.Translator(
+        EMB_DIM, UNITS, context_text_processor, target_text_processor
+    )
 
     for (context, target_inputs), _ in train_batches.take(1):
         model((context, target_inputs))

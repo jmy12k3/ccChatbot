@@ -1,12 +1,12 @@
 import os
 from configparser import SafeConfigParser
 
-config_file = os.getcwd() + "/config/settings.ini"
+config_file = os.getcwd() + "/config/config.ini"
 if not os.path.exists(config_file):
-    config_file = os.path.dirname(os.getcwd()) + "/config/settings.ini"
+    config_file = os.path.dirname(os.getcwd()) + "/config/config.ini"
 
 
-def get_config():
+def config():
     parser = SafeConfigParser()
     parser.read(config_file)
     _conf_ints = [(key, int(value)) for key, value in parser.items("ints")]

@@ -9,15 +9,14 @@ from text_cleaner.processor.common import (
     SYMBOLS_AND_PUNCTUATION_EXTENSION,
 )
 
-from config import getConfig
+from config import Config
 
 # region Config
 
-gConfig = {}
-gConfig = getConfig.get_config()
+config = Config.config()
 
-RSC_PATH = gConfig["rsc_path"]
-TSV_PATH = gConfig["tsv_path"]
+RSC_PATH = config["rsc_path"]
+TSV_PATH = config["tsv_path"]
 
 # endregion
 
